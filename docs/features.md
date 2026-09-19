@@ -44,6 +44,7 @@ You can access a repository's badge via the following URL pattern:
 - **Bootstrap Mode:** Automatically detects if no user exists and prompts for system initialization.
 - **Incident Logs:** Dedicated security logs and notification system for tracking synchronization failures.
 - **Worker Pool:** Intelligent task queueing to prevent CPU/IO spikes during heavy mirroring tasks.
+- **Live System Logs:** A global "Logs" page streams structured backend logs (`log/slog`) in a terminal-style view over WebSocket, with level/search filtering, play/pause, and configurable SQLite-backed retention.
 
 ## 🔌 Multi-Provider Support
 - **GitHub:** Full metadata extraction (Issues, Releases, Stars).

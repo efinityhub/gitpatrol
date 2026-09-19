@@ -93,11 +93,19 @@ This document outlines the development milestones for **GitPatrol**, an autonomo
 18. [ ] **Git Mirror Engine & Private Repository Support**
     - Ingest `GITHUB_TOKEN` and `GITLAB_TOKEN` into Git CLI operations for private repositories.
     - Command context timeouts (anti-hang protection) during Git synchronization.
+    - Sanitize repository folder paths and asset URLs against directory traversal (`../`) attempts.
 
 19. [ ] **Offline Recovery (.ZIP Downloads) & Incident Telemetry**
     - Implement `GET /api/repositories/:id/download` for one-click `.zip` archive recovery.
     - Implement `POST /api/incidents/:id/resolve` for incident acknowledgement.
     - Compute real fleet storage usage and uptime on dashboard hero banner.
+    - Polish UI error boundaries so failed sync reasons and disconnection states show clear, actionable messaging.
 
 20. [ ] **Test Suites & Quality Assurance**
     - Add automated Go unit tests for auth, health calculation, and URL normalization.
+    - Verify the standalone single-binary build (embedded frontend) and container deployment against `docker-compose.production.yml`.
+
+21. [x] **Structured Backend Logging & Live Logs Dashboard**
+    - Migrated backend logging to Go's `log/slog`, with a custom handler that persists entries to a `system_logs` SQLite table and broadcasts them over WebSocket.
+    - Added a `GET /api/logs` endpoint (level filtering, pagination) and an automated retention policy (age/count-based cleanup).
+    - **Frontend:** New global "Logs" page with a terminal-style live view, level/search filtering, and play/pause streaming.
