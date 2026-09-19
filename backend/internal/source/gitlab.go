@@ -187,3 +187,7 @@ func (s *GitLabSource) SyncReleases(repoURL string, destPath string) error {
 	_, err = io.Copy(outFile, resp.Body)
 	return err
 }
+
+func (s *GitLabSource) GitAuthArgs() []string {
+	return gitAuthHeaderArgs("gitlab.com", "oauth2", s.token)
+}

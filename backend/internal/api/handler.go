@@ -332,7 +332,7 @@ func (h *Handler) GetAsset(c echo.Context) error {
 	// Security: check if path is within repo data
 	cleanPath, _ := filepath.Abs(fullPath)
 	repoAbs, _ := filepath.Abs(repoPath)
-	if !strings.HasPrefix(cleanPath, repoAbs) {
+	if cleanPath != repoAbs && !strings.HasPrefix(cleanPath, repoAbs+string(filepath.Separator)) {
 		return c.String(http.StatusForbidden, "Forbidden")
 	}
 

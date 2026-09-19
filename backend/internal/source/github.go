@@ -175,3 +175,7 @@ func (s *GitHubSource) SyncReleases(url string, destPath string) error {
 	_, err = io.Copy(outFile, resp.Body)
 	return err
 }
+
+func (s *GitHubSource) GitAuthArgs() []string {
+	return gitAuthHeaderArgs("github.com", "x-access-token", s.token)
+}
