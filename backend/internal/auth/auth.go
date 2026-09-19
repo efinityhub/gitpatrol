@@ -70,6 +70,25 @@ func (s *AuthService) Login(username, password string) (string, error) {
 	return tokenString, nil
 }
 
+func (s *AuthService) ValidateToken(tokenString string) (jwt.MapClaims, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(s.config.JWTSecret), nil
+	})
+	if err != nil || !token.Valid {
+		return nil, fmt.Errorf("invalid or expired token")
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, fmt.Errorf("invalid token claims")
+	}
+
+	return claims, nil
+}
+
 func (s *AuthService) Middleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		cookie, err := c.Cookie("token")
@@ -77,20 +96,8 @@ func (s *AuthService) Middleware(next echo.HandlerFunc) echo.HandlerFunc {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing or invalid token"})
 		}
 
-		tokenString := cookie.Value
-		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-			}
-			return []byte(s.config.JWTSecret), nil
-		})
-
-		if err != nil || !token.Valid {
-			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing or invalid token"})
-		}
-
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
+		claims, err := s.ValidateToken(cookie.Value)
+		if err != nil {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing or invalid token"})
 		}
 
@@ -99,4 +106,23 @@ func (s *AuthService) Middleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 		return next(c)
 	}
+}
+
+func (s *AuthService) ChangePassword(userID int, oldPassword, newPassword string) error {
+	var hash string
+	if err := s.db.QueryRow("SELECT password_hash FROM users WHERE id = ?", userID).Scan(&hash); err != nil {
+		return fmt.Errorf("user not found")
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(oldPassword+s.config.PasswordPepper)); err != nil {
+		return fmt.Errorf("current password is incorrect")
+	}
+
+	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword+s.config.PasswordPepper), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.db.Exec("UPDATE users SET password_hash = ? WHERE id = ?", string(newHash), userID)
+	return err
 }
