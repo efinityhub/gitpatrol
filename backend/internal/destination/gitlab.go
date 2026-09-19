@@ -62,7 +62,7 @@ func (g *GitLabDestination) PushMirror(localPath string, targetURL string) error
 	
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("git push --mirror to GitLab failed: %v, output: %s", err, string(output))
+		return fmt.Errorf("git push --mirror to GitLab failed: %v, output: %s", err, redactToken(string(output), g.Token))
 	}
 	
 	return nil

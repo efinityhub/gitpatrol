@@ -26,7 +26,25 @@ type RepoService struct {
 }
 
 func RepoPath(dataDir string, id int, name string) string {
-	return filepath.Join(dataDir, "repos", fmt.Sprintf("%d_%s", id, name))
+	return filepath.Join(dataDir, "repos", fmt.Sprintf("%d_%s", id, sanitizeName(name)))
+}
+
+func sanitizeName(name string) string {
+	name = filepath.Base(name)
+	if name == "." || name == ".." || name == "" || name == string(filepath.Separator) {
+		return "repo"
+	}
+	return name
+}
+
+func scrubTokens(s string, cfg *config.Config) string {
+	if cfg.GithubToken != "" {
+		s = strings.ReplaceAll(s, cfg.GithubToken, "***")
+	}
+	if cfg.GitlabToken != "" {
+		s = strings.ReplaceAll(s, cfg.GitlabToken, "***")
+	}
+	return s
 }
 
 func NewRepoService(db *database.DB, hub *websocket.Hub, cfg *config.Config) *RepoService {
@@ -41,16 +59,22 @@ func (s *RepoService) SyncRepo(id int, url, name string) {
 	s.UpdateStatus(id, "syncing", "")
 
 	repoPath := RepoPath(s.cfg.DataDir, id, name)
-	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
-		cmd := exec.Command("git", "clone", url, repoPath)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			s.UpdateStatus(id, "error", formatCLIError(string(output), err))
+	src, err := source.GetSource(url, s.cfg.GithubToken, s.cfg.GitlabToken)
+	var authArgs []string
+	if err == nil {
+		authArgs = src.GitAuthArgs()
+	}
+
+	if _, statErr := os.Stat(repoPath); os.IsNotExist(statErr) {
+		cmd := exec.Command("git", append(authArgs, "clone", url, repoPath)...)
+		if output, cloneErr := cmd.CombinedOutput(); cloneErr != nil {
+			s.UpdateStatus(id, "error", formatCLIError(scrubTokens(string(output), s.cfg), cloneErr))
 			return
 		}
 	} else {
-		cmd := exec.Command("git", "-C", repoPath, "fetch", "--all", "--tags", "--force")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			s.UpdateStatus(id, "error", formatCLIError(string(output), err))
+		cmd := exec.Command("git", append(authArgs, "-C", repoPath, "fetch", "--all", "--tags", "--force")...)
+		if output, fetchErr := cmd.CombinedOutput(); fetchErr != nil {
+			s.UpdateStatus(id, "error", formatCLIError(scrubTokens(string(output), s.cfg), fetchErr))
 			return
 		}
 	}
@@ -59,7 +83,6 @@ func (s *RepoService) SyncRepo(id int, url, name string) {
 	var existingStars, existingForks, existingIssues int
 	s.db.QueryRow("SELECT stars, forks, open_issues FROM repositories WHERE id = ?", id).Scan(&existingStars, &existingForks, &existingIssues)
 
-	src, err := source.GetSource(url, s.cfg.GithubToken, s.cfg.GitlabToken)
 	var meta models.Metadata
 	meta.Stars = existingStars
 	meta.Forks = existingForks
@@ -77,7 +100,7 @@ func (s *RepoService) SyncRepo(id int, url, name string) {
 		}
 
 		if wikiURL, exists := src.GetWikiURL(url); exists {
-			s.syncWiki(wikiURL, repoPath)
+			s.syncWiki(wikiURL, repoPath, authArgs)
 		}
 
 		metadataPath := filepath.Join(repoPath, "metadata")
@@ -147,13 +170,12 @@ func (s *RepoService) UpdateStatus(id int, status, errMsg string) {
 	s.hub.BroadcastStatus(id, status, errMsg)
 }
 
-func (s *RepoService) syncWiki(url string, repoPath string) {
+func (s *RepoService) syncWiki(url string, repoPath string, authArgs []string) {
 	wikiPath := filepath.Join(repoPath, "wiki")
 	if _, err := os.Stat(wikiPath); os.IsNotExist(err) {
-		cmd := exec.Command("git", "clone", url, wikiPath)
-		cmd.Run()
+		exec.Command("git", append(authArgs, "clone", url, wikiPath)...).Run()
 	} else {
-		exec.Command("git", "-C", wikiPath, "fetch", "--all", "--tags", "--force").Run()
+		exec.Command("git", append(authArgs, "-C", wikiPath, "fetch", "--all", "--tags", "--force")...).Run()
 	}
 }
 
@@ -272,7 +294,7 @@ func (s *RepoService) downloadAvatar(url string, username string) {
 func formatCLIError(output string, err error) string {
 	out := strings.ToLower(output)
 	if strings.Contains(out, "authentication failed") || strings.Contains(out, "terminal prompts disabled") {
-		return "Authentication failed. Private repositories are not supported yet."
+		return "Authentication failed. For private repositories, check that GITHUB_TOKEN or GITLAB_TOKEN is set and has access."
 	}
 	if strings.Contains(out, "not found") || strings.Contains(out, "could not read from remote") {
 		return "The remote repository was not found. Please check the URL."
