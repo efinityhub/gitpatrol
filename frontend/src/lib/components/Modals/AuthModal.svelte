@@ -12,7 +12,7 @@
   async function handleSubmit() {
     loading = true;
     const success = await authStore.handleAuth(username, password);
-    if (success) {
+    if (success && authStore.isAuthenticated) {
       username = '';
       password = '';
       reposStore.fetchRepos();

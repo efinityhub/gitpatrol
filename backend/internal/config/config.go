@@ -6,24 +6,28 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	JWTSecret         string
-	PasswordPepper    string
-	DBPath            string
-	WorkerCount       int
-	GithubToken       string
-	GitlabURL         string
-	GitlabToken       string
-	GiteaURL          string
-	GiteaToken        string
-	ExportDestination string
-	LogRetentionDays  int
-	LogMaxRows        int
-	envPath           string
+	JWTSecret          string
+	PasswordPepper     string
+	DBPath             string
+	DataDir            string
+	Port               string
+	CorsAllowedOrigins []string
+	WorkerCount        int
+	GithubToken        string
+	GitlabURL          string
+	GitlabToken        string
+	GiteaURL           string
+	GiteaToken         string
+	ExportDestination  string
+	LogRetentionDays   int
+	LogMaxRows         int
+	envPath            string
 }
 
 func LoadConfig(envPath string) *Config {
@@ -49,6 +53,27 @@ func LoadConfig(envPath string) *Config {
 	if dbPath == "" {
 		dbPath = "./db/gitpatrol.db"
 		os.Setenv("DB_PATH", dbPath)
+		modified = true
+	}
+
+	dataDir := os.Getenv("DATA_DIR")
+	if dataDir == "" {
+		dataDir = "./data"
+		os.Setenv("DATA_DIR", dataDir)
+		modified = true
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+		os.Setenv("PORT", port)
+		modified = true
+	}
+
+	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if corsOrigins == "" {
+		corsOrigins = "http://localhost:5173,http://localhost:3000"
+		os.Setenv("CORS_ALLOWED_ORIGINS", corsOrigins)
 		modified = true
 	}
 
@@ -84,23 +109,26 @@ func LoadConfig(envPath string) *Config {
 	}
 
 	if modified {
-		_ = saveEnv(envPath, jwtSecret, pepper, dbPath, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest, workerCount, logRetentionDays, logMaxRows)
+		_ = saveEnv(envPath, jwtSecret, pepper, dbPath, dataDir, port, corsOrigins, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest, workerCount, logRetentionDays, logMaxRows)
 	}
 
 	return &Config{
-		JWTSecret:         jwtSecret,
-		PasswordPepper:    pepper,
-		DBPath:            dbPath,
-		WorkerCount:       workerCount,
-		GithubToken:       github,
-		GitlabURL:         gitlabURL,
-		GitlabToken:       gitlabToken,
-		GiteaURL:          giteaURL,
-		GiteaToken:        giteaToken,
-		ExportDestination: exportDest,
-		LogRetentionDays:  logRetentionDays,
-		LogMaxRows:        logMaxRows,
-		envPath:           envPath,
+		JWTSecret:          jwtSecret,
+		PasswordPepper:     pepper,
+		DBPath:             dbPath,
+		DataDir:            dataDir,
+		Port:               port,
+		CorsAllowedOrigins: strings.Split(corsOrigins, ","),
+		WorkerCount:        workerCount,
+		GithubToken:        github,
+		GitlabURL:          gitlabURL,
+		GitlabToken:        gitlabToken,
+		GiteaURL:           giteaURL,
+		GiteaToken:         giteaToken,
+		ExportDestination:  exportDest,
+		LogRetentionDays:   logRetentionDays,
+		LogMaxRows:         logMaxRows,
+		envPath:            envPath,
 	}
 }
 
@@ -130,25 +158,28 @@ func (c *Config) UpdateTokens(github, gitlabURL, gitlabToken, giteaURL, giteaTok
 		os.Setenv("EXPORT_DESTINATION", exportDest)
 	}
 
-	err := saveEnv(c.envPath, c.JWTSecret, c.PasswordPepper, c.DBPath, c.GithubToken, c.GitlabURL, c.GitlabToken, c.GiteaURL, c.GiteaToken, c.ExportDestination, c.WorkerCount, c.LogRetentionDays, c.LogMaxRows)
+	err := saveEnv(c.envPath, c.JWTSecret, c.PasswordPepper, c.DBPath, c.DataDir, c.Port, strings.Join(c.CorsAllowedOrigins, ","), c.GithubToken, c.GitlabURL, c.GitlabToken, c.GiteaURL, c.GiteaToken, c.ExportDestination, c.WorkerCount, c.LogRetentionDays, c.LogMaxRows)
 
 	return err
 }
 
-func saveEnv(path, jwt, pepper, dbPath, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest string, workerCount, logRetentionDays, logMaxRows int) error {
+func saveEnv(path, jwt, pepper, dbPath, dataDir, port, corsOrigins, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest string, workerCount, logRetentionDays, logMaxRows int) error {
 	env := map[string]string{
-		"JWT_SECRET":         jwt,
-		"PASSWORD_PEPPER":    pepper,
-		"DB_PATH":            dbPath,
-		"WORKERS":            strconv.Itoa(workerCount),
-		"GITHUB_TOKEN":       github,
-		"GITLAB_URL":         gitlabURL,
-		"GITLAB_TOKEN":       gitlabToken,
-		"GITEA_URL":          giteaURL,
-		"GITEA_TOKEN":        giteaToken,
-		"EXPORT_DESTINATION": exportDest,
-		"LOG_RETENTION_DAYS": strconv.Itoa(logRetentionDays),
-		"LOG_MAX_ROWS":       strconv.Itoa(logMaxRows),
+		"JWT_SECRET":           jwt,
+		"PASSWORD_PEPPER":      pepper,
+		"DB_PATH":              dbPath,
+		"DATA_DIR":             dataDir,
+		"PORT":                 port,
+		"CORS_ALLOWED_ORIGINS": corsOrigins,
+		"WORKERS":              strconv.Itoa(workerCount),
+		"GITHUB_TOKEN":         github,
+		"GITLAB_URL":           gitlabURL,
+		"GITLAB_TOKEN":         gitlabToken,
+		"GITEA_URL":            giteaURL,
+		"GITEA_TOKEN":          giteaToken,
+		"EXPORT_DESTINATION":   exportDest,
+		"LOG_RETENTION_DAYS":   strconv.Itoa(logRetentionDays),
+		"LOG_MAX_ROWS":         strconv.Itoa(logMaxRows),
 	}
 
 	err := godotenv.Write(env, path)

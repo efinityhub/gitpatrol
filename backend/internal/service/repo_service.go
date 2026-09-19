@@ -25,6 +25,10 @@ type RepoService struct {
 	cfg *config.Config
 }
 
+func RepoPath(dataDir string, id int, name string) string {
+	return filepath.Join(dataDir, "repos", fmt.Sprintf("%d_%s", id, name))
+}
+
 func NewRepoService(db *database.DB, hub *websocket.Hub, cfg *config.Config) *RepoService {
 	return &RepoService{
 		db:  db,
@@ -36,7 +40,7 @@ func NewRepoService(db *database.DB, hub *websocket.Hub, cfg *config.Config) *Re
 func (s *RepoService) SyncRepo(id int, url, name string) {
 	s.UpdateStatus(id, "syncing", "")
 
-	repoPath := filepath.Join("./data", name)
+	repoPath := RepoPath(s.cfg.DataDir, id, name)
 	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
 		cmd := exec.Command("git", "clone", url, repoPath)
 		if output, err := cmd.CombinedOutput(); err != nil {
@@ -73,10 +77,10 @@ func (s *RepoService) SyncRepo(id int, url, name string) {
 		}
 
 		if wikiURL, exists := src.GetWikiURL(url); exists {
-			s.syncWiki(wikiURL, name)
+			s.syncWiki(wikiURL, repoPath)
 		}
 
-		metadataPath := filepath.Join("./data", name, "metadata")
+		metadataPath := filepath.Join(repoPath, "metadata")
 		src.SyncIssues(url, metadataPath)
 		src.SyncReleases(url, metadataPath)
 	}
@@ -143,8 +147,8 @@ func (s *RepoService) UpdateStatus(id int, status, errMsg string) {
 	s.hub.BroadcastStatus(id, status, errMsg)
 }
 
-func (s *RepoService) syncWiki(url string, name string) {
-	wikiPath := filepath.Join("./data", name, "wiki")
+func (s *RepoService) syncWiki(url string, repoPath string) {
+	wikiPath := filepath.Join(repoPath, "wiki")
 	if _, err := os.Stat(wikiPath); os.IsNotExist(err) {
 		cmd := exec.Command("git", "clone", url, wikiPath)
 		cmd.Run()
@@ -243,8 +247,9 @@ func (s *RepoService) calculateHealthScore(meta models.Metadata, historyStr stri
 }
 
 func (s *RepoService) downloadAvatar(url string, username string) {
-	os.MkdirAll("./data/avatars", 0755)
-	avatarPath := filepath.Join("./data/avatars", username+".png")
+	avatarsDir := filepath.Join(s.cfg.DataDir, "avatars")
+	os.MkdirAll(avatarsDir, 0755)
+	avatarPath := filepath.Join(avatarsDir, username+".png")
 	if _, err := os.Stat(avatarPath); err == nil {
 		return
 	}
