@@ -45,4 +45,5 @@ node_modules/
 
 .devcontainer
 .reference
-CLAUDE.md
+
+artifacts

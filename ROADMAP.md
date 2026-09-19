@@ -79,3 +79,25 @@ This document outlines the development milestones for **GitPatrol**, an autonomo
     - **Backend:** Implemented a `/api/health` endpoint monitoring Internet connectivity (8.8.8.8), Disk Space availability, and Database integrity.
     - **Autonomy:** Backend logs system incidents and broadcasts health status via WebSockets.
     - **Frontend:** Upgraded the "System Online" badge to a dynamic traffic-light system with real-time metrics.
+
+16. [ ] **Production Hardening & Storage Persistence**
+    - Configurable `DATA_DIR` and `DB_PATH` to ensure Docker volumes (`/var/lib/gitpatrol`) persist across container restarts.
+    - ID-prefixed repository storage (`data/repos/{id}_{name}`) with auto-migration of legacy paths.
+    - Dynamic `PORT` binding and graceful process shutdown (`SIGINT`/`SIGTERM`) handling.
+
+17. [ ] **Authentication & Security Hardening**
+    - Enable operator password changing in user profile with current password verification.
+    - Secure JWT verification in `CheckAuthStatus` and enforce `SameSite` & `GP_SECURE_COOKIE` flags.
+    - Rate limiting on `/api/auth/login` and `/api/auth/register`.
+
+18. [ ] **Git Mirror Engine & Private Repository Support**
+    - Ingest `GITHUB_TOKEN` and `GITLAB_TOKEN` into Git CLI operations for private repositories.
+    - Command context timeouts (anti-hang protection) during Git synchronization.
+
+19. [ ] **Offline Recovery (.ZIP Downloads) & Incident Telemetry**
+    - Implement `GET /api/repositories/:id/download` for one-click `.zip` archive recovery.
+    - Implement `POST /api/incidents/:id/resolve` for incident acknowledgement.
+    - Compute real fleet storage usage and uptime on dashboard hero banner.
+
+20. [ ] **Test Suites & Quality Assurance**
+    - Add automated Go unit tests for auth, health calculation, and URL normalization.
