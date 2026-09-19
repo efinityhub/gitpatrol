@@ -24,12 +24,25 @@ Running GitPatrol via Docker Compose is the easiest way to ensure all dependenci
     cd gitpatrol
     ```
 2.  **Environment Configuration:**
-    The backend automatically generates secrets on the first run, but you can configure the following in your environment or a `.env` file:
+    The backend automatically generates secrets and sensible defaults on first run and writes them to `gitpatrol.env` next to the database, but you can override any of these via your environment or that file:
+
     | Variable | Description | Default |
     |----------|-------------|---------|
-    | `JWT_SECRET` | Secret key for JWT tokens. | Randomly generated |
-    | `PASSWORD_PEPPER` | Pepper used for password hashing. | Randomly generated |
-    | `GP_SECURE_COOKIE` | Set to `true` to enable the Secure flag on cookies. | `false` |
+    | `JWT_SECRET` | Secret key for signing session JWTs. | Randomly generated |
+    | `PASSWORD_PEPPER` | Pepper mixed into password hashes. | Randomly generated |
+    | `DB_PATH` | Path to the SQLite database file. | `./db/gitpatrol.db` |
+    | `DATA_DIR` | Root directory for Git mirrors, avatars, and archived metadata. | `./data` |
+    | `PORT` | Port the backend HTTP server listens on. | `8080` |
+    | `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed frontend origins. | `http://localhost:5173,http://localhost:3000` |
+    | `WORKERS` | Number of concurrent sync workers. | `3` |
+    | `LOG_RETENTION_DAYS` | Days to keep rows in the system logs table. | `7` |
+    | `LOG_MAX_ROWS` | Maximum system log rows kept, whichever limit hits first. | `10000` |
+    | `GITHUB_TOKEN` | GitHub token used for private repos and to avoid API rate limits. | none |
+    | `GITLAB_URL` | Base URL of your GitLab instance. | `https://gitlab.com` |
+    | `GITLAB_TOKEN` | GitLab token used for private repos and to avoid API rate limits. | none |
+    | `GITEA_URL` / `GITEA_TOKEN` | Base URL and token for a Gitea recovery vault. | none |
+    | `EXPORT_DESTINATION` | Default one-click export target (`github`, `gitlab`, or `gitea`). | none |
+    | `GP_SECURE_COOKIE` | Set to `true` to enable the Secure flag on the session cookie. | *(planned — not implemented yet)* |
 
 3.  **Spin up the containers:**
     ```bash
@@ -54,6 +67,11 @@ Running GitPatrol via Docker Compose is the easiest way to ensure all dependenci
     The dashboard will be available at `http://localhost:5173`. Ensure it points to the correct `PUBLIC_API_URL`.
 
 ## 📦 Data Volumes
-If running in Docker, ensure the following volumes are mapped to persistent storage:
-- `/root/db/`: Contains `gitpatrol.db` (SQLite) and `gitpatrol.env`.
-- `/root/data/`: Contains physical Git mirrors, avatars, and archived metadata.
+If running in Docker, ensure the following volumes are mapped to persistent storage.
+
+**`docker-compose.yml` (development image):**
+- `/app/db/`: Contains `gitpatrol.db` (SQLite) and `gitpatrol.env`.
+- `/app/data/`: Contains physical Git mirrors, avatars, and archived metadata.
+
+**`docker-compose.production.yml` (single-binary image):**
+- `/var/lib/gitpatrol/`: A single mount containing both `db/` and `data/` (set via `DB_PATH` and `DATA_DIR` in the image).

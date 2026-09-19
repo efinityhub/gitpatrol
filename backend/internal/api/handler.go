@@ -119,6 +119,12 @@ func (h *Handler) Register(c echo.Context) error {
                 return c.JSON(http.StatusBadRequest, map[string]string{"error": "username already exists"})
         }
 
+        token, err := h.authService.Login(body.Username, body.Password)
+        if err != nil {
+                return c.JSON(http.StatusInternalServerError, map[string]string{"error": "account created but login failed"})
+        }
+        h.setAuthCookie(c, token)
+
         return c.JSON(http.StatusCreated, map[string]string{"message": "registered successfully"})
 }
 
@@ -136,6 +142,12 @@ func (h *Handler) Login(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
 	}
 
+	h.setAuthCookie(c, token)
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "login successful"})
+}
+
+func (h *Handler) setAuthCookie(c echo.Context, token string) {
 	cookie := new(http.Cookie)
 	cookie.Name = "token"
 	cookie.Value = token
@@ -143,8 +155,6 @@ func (h *Handler) Login(c echo.Context) error {
 	cookie.Path = "/"
 	cookie.HttpOnly = true
 	c.SetCookie(cookie)
-
-	return c.JSON(http.StatusOK, map[string]string{"message": "login successful"})
 }
 
 func (h *Handler) Logout(c echo.Context) error {
@@ -263,7 +273,7 @@ func (h *Handler) UpdateRepository(c echo.Context) error {
 }
 
 func (h *Handler) DeleteRepository(c echo.Context) error {
-	id := c.Param("id")
+	id, _ := strconv.Atoi(c.Param("id"))
 
 	var name string
 	h.db.QueryRow("SELECT name FROM repositories WHERE id = ?", id).Scan(&name)
@@ -272,7 +282,7 @@ func (h *Handler) DeleteRepository(c echo.Context) error {
 	h.db.Exec("DELETE FROM incidents WHERE repo_id = ?", id)
 
 	if name != "" {
-		os.RemoveAll(filepath.Join("./data", name))
+		os.RemoveAll(service.RepoPath(h.config.DataDir, id, name))
 	}
 
 	return c.NoContent(http.StatusOK)
@@ -291,14 +301,15 @@ func (h *Handler) SyncRepositoryNow(c echo.Context) error {
 }
 
 func (h *Handler) GetReadme(c echo.Context) error {
-	id := c.Param("id")
+	id, _ := strconv.Atoi(c.Param("id"))
 	var name string
 	h.db.QueryRow("SELECT name FROM repositories WHERE id = ?", id).Scan(&name)
 
-	path := filepath.Join("./data", name, "README.md")
+	repoPath := service.RepoPath(h.config.DataDir, id, name)
+	path := filepath.Join(repoPath, "README.md")
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		// Try lowercase
-		path = filepath.Join("./data", name, "readme.md")
+		path = filepath.Join(repoPath, "readme.md")
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			return c.String(http.StatusNotFound, "README not found")
 		}
@@ -309,17 +320,18 @@ func (h *Handler) GetReadme(c echo.Context) error {
 }
 
 func (h *Handler) GetAsset(c echo.Context) error {
-	id := c.Param("id")
+	id, _ := strconv.Atoi(c.Param("id"))
 	assetPath := c.Param("*")
 
 	var name string
 	h.db.QueryRow("SELECT name FROM repositories WHERE id = ?", id).Scan(&name)
 
-	fullPath := filepath.Join("./data", name, assetPath)
+	repoPath := service.RepoPath(h.config.DataDir, id, name)
+	fullPath := filepath.Join(repoPath, assetPath)
 
 	// Security: check if path is within repo data
 	cleanPath, _ := filepath.Abs(fullPath)
-	repoAbs, _ := filepath.Abs(filepath.Join("./data", name))
+	repoAbs, _ := filepath.Abs(repoPath)
 	if !strings.HasPrefix(cleanPath, repoAbs) {
 		return c.String(http.StatusForbidden, "Forbidden")
 	}

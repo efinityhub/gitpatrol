@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"os"
+	"path/filepath"
 
 	_ "modernc.org/sqlite"
 )
@@ -12,7 +13,7 @@ type DB struct {
 }
 
 func NewDB(dbPath string) (*DB, error) {
-	if err := os.MkdirAll("db", 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, err
 	}
 

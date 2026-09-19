@@ -6,7 +6,6 @@ import (
 	"gitpatrol/internal/database"
 	"gitpatrol/internal/destination"
 	"gitpatrol/internal/models"
-	"path/filepath"
 )
 
 type ExportService struct {
@@ -76,7 +75,7 @@ func (s *ExportService) Export(repoID int, destinationType string) (*models.Expo
 	}
 
 	// 4. Push Mirror
-	localPath := filepath.Join("./data", repo.Name)
+	localPath := RepoPath(s.cfg.DataDir, repo.ID, repo.Name)
 	err = dest.PushMirror(localPath, cloneURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to push mirror: %v", err)

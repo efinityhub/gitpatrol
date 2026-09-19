@@ -30,7 +30,8 @@ COPY --from=backend-builder /app/gitpatrol .
 VOLUME /var/lib/gitpatrol
 # Default Environment Variables
 ENV DB_PATH=/var/lib/gitpatrol/db/gitpatrol.db
-ENV WORKER_COUNT=3
+ENV DATA_DIR=/var/lib/gitpatrol/data
+ENV WORKERS=3
 ENV PORT=8080
 EXPOSE 8080
 # Start GitPatrol

@@ -5,6 +5,7 @@ import (
 	"embed"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"gitpatrol/internal/api"
@@ -30,7 +31,7 @@ func main() {
 	}
 	defer db.Close()
 
-	os.MkdirAll("./data", 0755)
+	os.MkdirAll(cfg.DataDir, 0755)
 
 	hub := websocket.NewHub()
 	
@@ -50,7 +51,7 @@ func main() {
 	e.Use(middleware.Recover())
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowOrigins:     cfg.CorsAllowedOrigins,
 		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 		AllowCredentials: true,
 	}))
@@ -58,7 +59,7 @@ func main() {
 	h := api.NewHandler(db, authService, syncManager, repoService, healthService, exportService, hub, cfg)
 	h.RegisterRoutes(e)
 
-	e.Static("/avatars", "./data/avatars")
+	e.Static("/avatars", filepath.Join(cfg.DataDir, "avatars"))
 
 	// UI Service (Embedded)
 	service.UI = uiBuild
@@ -97,5 +98,5 @@ func main() {
 		}
 	}()
 
-	e.Logger.Fatal(e.Start(":8080"))
+	e.Logger.Fatal(e.Start(":" + cfg.Port))
 }
