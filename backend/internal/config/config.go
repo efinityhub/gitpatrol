@@ -3,7 +3,7 @@ package config
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 
@@ -21,6 +21,8 @@ type Config struct {
 	GiteaURL          string
 	GiteaToken        string
 	ExportDestination string
+	LogRetentionDays  int
+	LogMaxRows        int
 	envPath           string
 }
 
@@ -67,8 +69,22 @@ func LoadConfig(envPath string) *Config {
 	giteaToken := os.Getenv("GITEA_TOKEN")
 	exportDest := os.Getenv("EXPORT_DESTINATION")
 
+	logRetentionDays, err := strconv.Atoi(os.Getenv("LOG_RETENTION_DAYS"))
+	if logRetentionDays == 0 || err != nil {
+		logRetentionDays = 7
+		os.Setenv("LOG_RETENTION_DAYS", strconv.Itoa(logRetentionDays))
+		modified = true
+	}
+
+	logMaxRows, err := strconv.Atoi(os.Getenv("LOG_MAX_ROWS"))
+	if logMaxRows == 0 || err != nil {
+		logMaxRows = 10000
+		os.Setenv("LOG_MAX_ROWS", strconv.Itoa(logMaxRows))
+		modified = true
+	}
+
 	if modified {
-		_ = saveEnv(envPath, jwtSecret, pepper, dbPath, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest, workerCount)
+		_ = saveEnv(envPath, jwtSecret, pepper, dbPath, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest, workerCount, logRetentionDays, logMaxRows)
 	}
 
 	return &Config{
@@ -82,6 +98,8 @@ func LoadConfig(envPath string) *Config {
 		GiteaURL:          giteaURL,
 		GiteaToken:        giteaToken,
 		ExportDestination: exportDest,
+		LogRetentionDays:  logRetentionDays,
+		LogMaxRows:        logMaxRows,
 		envPath:           envPath,
 	}
 }
@@ -112,12 +130,12 @@ func (c *Config) UpdateTokens(github, gitlabURL, gitlabToken, giteaURL, giteaTok
 		os.Setenv("EXPORT_DESTINATION", exportDest)
 	}
 
-	err := saveEnv(c.envPath, c.JWTSecret, c.PasswordPepper, c.DBPath, c.GithubToken, c.GitlabURL, c.GitlabToken, c.GiteaURL, c.GiteaToken, c.ExportDestination, c.WorkerCount)
+	err := saveEnv(c.envPath, c.JWTSecret, c.PasswordPepper, c.DBPath, c.GithubToken, c.GitlabURL, c.GitlabToken, c.GiteaURL, c.GiteaToken, c.ExportDestination, c.WorkerCount, c.LogRetentionDays, c.LogMaxRows)
 
 	return err
 }
 
-func saveEnv(path, jwt, pepper, dbPath, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest string, workerCount int) error {
+func saveEnv(path, jwt, pepper, dbPath, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest string, workerCount, logRetentionDays, logMaxRows int) error {
 	env := map[string]string{
 		"JWT_SECRET":         jwt,
 		"PASSWORD_PEPPER":    pepper,
@@ -129,14 +147,16 @@ func saveEnv(path, jwt, pepper, dbPath, github, gitlabURL, gitlabToken, giteaURL
 		"GITEA_URL":          giteaURL,
 		"GITEA_TOKEN":        giteaToken,
 		"EXPORT_DESTINATION": exportDest,
+		"LOG_RETENTION_DAYS": strconv.Itoa(logRetentionDays),
+		"LOG_MAX_ROWS":       strconv.Itoa(logMaxRows),
 	}
 
 	err := godotenv.Write(env, path)
 	if err != nil {
-		log.Printf("[CONFIG] Warning: Could not save .env file: %v", err)
+		slog.Warn("Could not save .env file", "error", err)
 		return err
 	} else {
-		log.Printf("[CONFIG] Secrets generated and saved to %s", path)
+		slog.Info("Secrets generated and saved", "path", path)
 		return nil
 	}
 }

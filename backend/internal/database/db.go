@@ -24,6 +24,7 @@ func NewDB(dbPath string) (*DB, error) {
 	// Enable WAL mode and set busy timeout for better concurrency
 	db.Exec("PRAGMA journal_mode=WAL;")
 	db.Exec("PRAGMA busy_timeout=5000;")
+	db.SetMaxOpenConns(1)
 
 	if err := createTables(db); err != nil {
 		return nil, err
@@ -38,6 +39,13 @@ func createTables(db *sql.DB) error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			username TEXT UNIQUE,
 			password_hash TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);`,
+		`CREATE TABLE IF NOT EXISTS system_logs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			level TEXT,
+			message TEXT,
+			attributes TEXT,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 		);`,
 		`CREATE TABLE IF NOT EXISTS incidents (

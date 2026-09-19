@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -72,10 +72,10 @@ func (s *GitHubSource) GetMetadata(url string) (models.Metadata, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode == 403 {
+	if resp.StatusCode == http.StatusForbidden {
+		slog.Warn("GitHub Rate Limit hit. Pausing API calls for 15 minutes.")
 		githubRateLimitUntil = time.Now().Add(15 * time.Minute)
-		log.Printf("[SOURCE] GitHub Rate Limit hit. Pausing API calls for 15 minutes.")
-		return models.Metadata{}, fmt.Errorf("GitHub API rate limit hit")
+		return models.Metadata{}, fmt.Errorf("rate limit exceeded")
 	}
 
 	if resp.StatusCode != 200 {

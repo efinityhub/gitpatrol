@@ -74,3 +74,16 @@ func (h *Hub) BroadcastHealthStatus(health map[string]interface{}) {
 	}
 	h.mu.Unlock()
 }
+
+func (h *Hub) BroadcastSystemLog(logEntry map[string]interface{}) {
+	msg, _ := json.Marshal(map[string]interface{}{
+		"type": "syslog",
+		"log":  logEntry,
+	})
+
+	h.mu.Lock()
+	for client := range h.clients {
+		client.WriteMessage(websocket.TextMessage, msg)
+	}
+	h.mu.Unlock()
+}

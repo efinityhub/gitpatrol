@@ -2,13 +2,14 @@ package service
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"sync"
 	"syscall"
 	"time"
 
+	"gitpatrol/internal/config"
 	"gitpatrol/internal/database"
 	"gitpatrol/internal/websocket"
 )
@@ -17,29 +18,53 @@ type HealthService struct {
 	db          *database.DB
 	hub         *websocket.Hub
 	syncManager *SyncManager
+	config      *config.Config
 	status      string
 	checks      map[string]interface{}
 	mu          sync.RWMutex
 }
 
-func NewHealthService(db *database.DB, hub *websocket.Hub, syncManager *SyncManager) *HealthService {
+func NewHealthService(db *database.DB, hub *websocket.Hub, syncManager *SyncManager, cfg *config.Config) *HealthService {
 	return &HealthService{
 		db:          db,
 		hub:         hub,
 		syncManager: syncManager,
+		config:      cfg,
 		status:      "healthy",
 		checks:      make(map[string]interface{}),
 	}
 }
 
 func (s *HealthService) Start() {
-	log.Println("[HEALTH] Starting background health monitoring")
+	slog.Info("Starting background health monitoring")
 	go func() {
 		for {
 			s.PerformCheck()
+			s.CleanupLogs()
 			time.Sleep(1 * time.Minute)
 		}
 	}()
+}
+
+func (s *HealthService) CleanupLogs() {
+	// Delete logs older than X days
+	queryDays := fmt.Sprintf(`DELETE FROM system_logs WHERE created_at < datetime('now', '-%d days')`, s.config.LogRetentionDays)
+	_, err := s.db.Exec(queryDays)
+	if err != nil {
+		slog.Error("Failed to cleanup old logs", "error", err)
+	}
+	
+	// Keep only the most recent Y entries
+	queryRows := fmt.Sprintf(`
+		DELETE FROM system_logs 
+		WHERE id NOT IN (
+			SELECT id FROM system_logs ORDER BY id DESC LIMIT %d
+		)
+	`, s.config.LogMaxRows)
+	_, err = s.db.Exec(queryRows)
+	if err != nil {
+		slog.Error("Failed to trim log limits", "error", err)
+	}
 }
 
 func (s *HealthService) PerformCheck() {
@@ -101,7 +126,7 @@ func (s *HealthService) PerformCheck() {
 
 	// Handle status changes or periodic heartbeat
 	if newStatus != oldStatus {
-		log.Printf("[HEALTH] System status changed: %s -> %s", oldStatus, newStatus)
+		slog.Info("System status changed", "old", oldStatus, "new", newStatus)
 		
 		// Log incident if not healthy
 		if newStatus != "healthy" {

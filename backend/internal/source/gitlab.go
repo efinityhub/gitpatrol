@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -82,7 +82,7 @@ func (s *GitLabSource) GetMetadata(repoURL string) (models.Metadata, error) {
 
 	if resp.StatusCode == 429 {
 		gitlabRateLimitUntil = time.Now().Add(15 * time.Minute)
-		log.Printf("[SOURCE] GitLab Rate Limit hit. Pausing API calls for 15 minutes.")
+		slog.Warn("GitLab Rate Limit hit. Pausing API calls for 15 minutes.")
 		return models.Metadata{}, fmt.Errorf("GitLab API rate limit hit")
 	}
 

@@ -8,6 +8,8 @@ services:
       - ./backend/db:/app/db
     environment:
       - DB_PATH=./db/gitpatrol.db
+      - LOG_RETENTION_DAYS=7
+      - LOG_MAX_ROWS=10000
 
   frontend:
     build: ./frontend

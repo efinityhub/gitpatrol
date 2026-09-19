@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -69,7 +69,7 @@ func (s *RepoService) SyncRepo(id int, url, name string) {
 				s.downloadAvatar(meta.AvatarURL, meta.Username)
 			}
 		} else {
-			log.Printf("[SYNC] Failed to fetch metadata for %s: %v", url, fetchErr)
+			slog.Warn("Failed to fetch metadata", "url", url, "error", fetchErr)
 		}
 
 		if wikiURL, exists := src.GetWikiURL(url); exists {
@@ -130,7 +130,7 @@ func (s *RepoService) UpdateStatus(id int, status, errMsg string) {
 
 		if isPermanent {
 			s.db.Exec("UPDATE repositories SET auto_patrol = 0 WHERE id = ?", id)
-			log.Printf("[SYNC] Disabled auto_patrol for %s due to permanent failure: %s", repoName, errMsg)
+			slog.Warn("Disabled auto_patrol due to permanent failure", "repo", repoName, "error", errMsg)
 		}
 
 		var lastMessage string

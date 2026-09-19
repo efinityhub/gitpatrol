@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -66,6 +67,7 @@ func (h *Handler) RegisterRoutes(e *echo.Echo) {
 	api.GET("/repositories/:id/assets/*", h.GetAsset)
 	api.GET("/incidents", h.GetIncidents)
 	api.DELETE("/incidents", h.ClearIncidents)
+	api.GET("/logs", h.GetLogs)
 	api.GET("/settings", h.GetSettings)
 	api.PATCH("/settings", h.UpdateSettings)
 	api.GET("/health", h.GetHealth)
@@ -393,4 +395,48 @@ func (h *Handler) ExportRepository(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, res)
+}
+
+func (h *Handler) GetLogs(c echo.Context) error {
+	limit := c.QueryParam("limit")
+	if limit == "" {
+		limit = "100"
+	}
+	
+	rows, err := h.db.Query(`
+		SELECT id, level, message, attributes, created_at 
+		FROM system_logs 
+		ORDER BY created_at DESC 
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	var logs []map[string]interface{}
+	for rows.Next() {
+		var id int
+		var level, message, attributes, createdAt string
+		if err := rows.Scan(&id, &level, &message, &attributes, &createdAt); err != nil {
+			continue
+		}
+		
+		var attrsMap map[string]interface{}
+		json.Unmarshal([]byte(attributes), &attrsMap)
+
+		logs = append(logs, map[string]interface{}{
+			"id":         id,
+			"level":      level,
+			"message":    message,
+			"attributes": attrsMap,
+			"created_at": createdAt,
+		})
+	}
+	
+	if logs == nil {
+		logs = []map[string]interface{}{}
+	}
+	
+	return c.JSON(http.StatusOK, logs)
 }

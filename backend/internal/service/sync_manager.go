@@ -1,7 +1,7 @@
 package service
 
 import (
-	"log"
+	"log/slog"
 	"sync"
 
 	"gitpatrol/internal/database"
@@ -37,7 +37,7 @@ func NewSyncManager(workerCount int, db *database.DB, hub *websocket.Hub, repoSe
 	for i := 0; i < workerCount; i++ {
 		go m.worker(i)
 	}
-	log.Printf("[MANAGER] Started SyncManager with %d workers", workerCount)
+	slog.Info("Started SyncManager", "workers", workerCount)
 	return m
 }
 
@@ -45,21 +45,21 @@ func (m *SyncManager) Enqueue(id int, url, name string) {
 	m.mu.Lock()
 	if m.activeTasks[id] {
 		m.mu.Unlock()
-		log.Printf("[MANAGER] Task for repo %s already in queue or active, skipping duplicate.", name)
+		slog.Info("Task already in queue or active, skipping duplicate", "repo", name)
 		return
 	}
 	m.activeTasks[id] = true
 	m.mu.Unlock()
 
 	m.tasks <- SyncTask{ID: id, URL: url, Name: name}
-	log.Printf("[MANAGER] Enqueued sync for %s", name)
+	slog.Info("Enqueued sync", "repo", name)
 }
 
 func (m *SyncManager) worker(id int) {
 	for task := range m.tasks {
-		log.Printf("[WORKER %d] Starting sync for %s", id, task.Name)
+		slog.Info("Starting sync", "worker", id, "repo", task.Name)
 		m.repoService.SyncRepo(task.ID, task.URL, task.Name)
-		log.Printf("[WORKER %d] Finished sync for %s", id, task.Name)
+		slog.Info("Finished sync", "worker", id, "repo", task.Name)
 
 		m.mu.Lock()
 		delete(m.activeTasks, task.ID)
