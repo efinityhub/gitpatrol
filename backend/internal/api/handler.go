@@ -67,6 +67,7 @@ func (h *Handler) RegisterRoutes(e *echo.Echo) {
 	api.GET("/repositories/:id/assets/*", h.GetAsset)
 	api.GET("/incidents", h.GetIncidents)
 	api.DELETE("/incidents", h.ClearIncidents)
+	api.POST("/incidents/:id/resolve", h.ResolveIncident)
 	api.GET("/logs", h.GetLogs)
 	api.GET("/settings", h.GetSettings)
 	api.PATCH("/settings", h.UpdateSettings)
@@ -88,15 +89,16 @@ func (h *Handler) GetHealth(c echo.Context) error {
 
 func (h *Handler) CheckAuthStatus(c echo.Context) error {
         needsBootstrap := h.authService.NeedsBootstrap()
-        cookie, err := c.Cookie("token")
-        if err != nil {
-                return c.JSON(http.StatusOK, map[string]interface{}{
-                        "authenticated":   false,
-                        "needs_bootstrap": needsBootstrap,
-                })
+
+        authenticated := false
+        if cookie, err := c.Cookie("token"); err == nil {
+                if _, err := h.authService.ValidateToken(cookie.Value); err == nil {
+                        authenticated = true
+                }
         }
+
         return c.JSON(http.StatusOK, map[string]interface{}{
-                "authenticated":   cookie.Value != "",
+                "authenticated":   authenticated,
                 "needs_bootstrap": needsBootstrap,
         })
 }
@@ -168,8 +170,9 @@ func (h *Handler) GetMe(c echo.Context) error {
 func (h *Handler) UpdateUser(c echo.Context) error {
 	userID := c.Get("user_id").(int)
 	var body struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
+		Username    string `json:"username"`
+		OldPassword string `json:"old_password"`
+		NewPassword string `json:"new_password"`
 	}
 	if err := c.Bind(&body); err != nil {
 		return err
@@ -182,11 +185,13 @@ func (h *Handler) UpdateUser(c echo.Context) error {
 		}
 	}
 
-	if body.Password != "" {
-		// This should probably be in AuthService, but for simplicity of refactor:
-		// hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(body.Password+h.config.PasswordPepper), bcrypt.DefaultCost)
-		// h.db.Exec("UPDATE users SET password_hash = ? WHERE id = ?", string(hashedPassword), userID)
-		// Actually, let's keep it simple and just do username for now, or add method to AuthService.
+	if body.NewPassword != "" {
+		if body.OldPassword == "" {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "current password is required"})
+		}
+		if err := h.authService.ChangePassword(userID, body.OldPassword, body.NewPassword); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "updated successfully"})
@@ -327,7 +332,7 @@ func (h *Handler) GetAsset(c echo.Context) error {
 }
 
 func (h *Handler) GetIncidents(c echo.Context) error {
-	rows, err := h.db.Query("SELECT id, repo_id, repo_name, message, created_at, resolved FROM incidents ORDER BY created_at DESC")
+	rows, err := h.db.Query("SELECT id, repo_id, repo_name, message, created_at, resolved FROM incidents WHERE resolved = 0 ORDER BY created_at DESC")
 	if err != nil {
 		return err
 	}
@@ -347,6 +352,14 @@ func (h *Handler) GetIncidents(c echo.Context) error {
 
 func (h *Handler) ClearIncidents(c echo.Context) error {
 	h.db.Exec("DELETE FROM incidents")
+	return c.NoContent(http.StatusOK)
+}
+
+func (h *Handler) ResolveIncident(c echo.Context) error {
+	id := c.Param("id")
+	if _, err := h.db.Exec("UPDATE incidents SET resolved = 1 WHERE id = ?", id); err != nil {
+		return err
+	}
 	return c.NoContent(http.StatusOK)
 }
 
