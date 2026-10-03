@@ -128,6 +128,11 @@
     }
   }
 
+  function downloadArchive() {
+    if (!repo) return;
+    window.location.href = `${API_URL}/api/repositories/${repo.id}/download`;
+  }
+
   async function exportRepo() {
     if (!repo) return;
     if (!exportDestination) {
@@ -221,6 +226,9 @@
       </div>
 
       <div style="display: flex; gap: 12px; margin-left: auto;">
+        <button class="secondary action-btn" onclick={downloadArchive} data-tooltip="Download Archive">
+          <Icon name="folder" />
+        </button>
         <button class="secondary action-btn" onclick={exportRepo} data-tooltip="Recovery Export">
           <Icon name="download" />
         </button>

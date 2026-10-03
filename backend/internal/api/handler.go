@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -63,6 +64,7 @@ func (h *Handler) RegisterRoutes(e *echo.Echo) {
 	api.DELETE("/repositories/:id", h.DeleteRepository)
 	api.POST("/repositories/:id/sync", h.SyncRepositoryNow)
 	api.POST("/repositories/:id/export", h.ExportRepository)
+	api.GET("/repositories/:id/download", h.DownloadRepository)
 	api.GET("/repositories/:id/readme", h.GetReadme)
 	api.GET("/repositories/:id/assets/*", h.GetAsset)
 	api.GET("/incidents", h.GetIncidents)
@@ -420,6 +422,31 @@ func (h *Handler) ExportRepository(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, res)
+}
+
+func (h *Handler) DownloadRepository(c echo.Context) error {
+	id, _ := strconv.Atoi(c.Param("id"))
+
+	var name, defaultBranch, status string
+	err := h.db.QueryRow("SELECT name, default_branch, status FROM repositories WHERE id = ?", id).Scan(&name, &defaultBranch, &status)
+	if err != nil {
+		return c.String(http.StatusNotFound, "Repository not found")
+	}
+	if status != "synced" {
+		return c.String(http.StatusConflict, "Repository has not finished syncing yet")
+	}
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
+
+	repoPath := service.RepoPath(h.config.DataDir, id, name)
+
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.zip"`, name))
+	c.Response().Header().Set(echo.HeaderContentType, "application/zip")
+
+	cmd := exec.Command("git", "-C", repoPath, "archive", "--format=zip", defaultBranch)
+	cmd.Stdout = c.Response().Writer
+	return cmd.Run()
 }
 
 func (h *Handler) GetLogs(c echo.Context) error {
