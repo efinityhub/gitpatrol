@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -42,6 +43,20 @@ func sanitizeName(name string) string {
 		return "repo"
 	}
 	return name
+}
+
+func dirSize(path string) int64 {
+	var total int64
+	filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || !d.Type().IsRegular() {
+			return nil
+		}
+		if info, infoErr := d.Info(); infoErr == nil {
+			total += info.Size()
+		}
+		return nil
+	})
+	return total
 }
 
 func scrubTokens(s string, cfg *config.Config) string {
@@ -165,9 +180,10 @@ func (s *RepoService) SyncRepo(ctx context.Context, id int, url, name string) {
 		commit_history = ?, 
 		health_score = ?,
 		default_branch = ?,
-		error_message = '' 
+		size_bytes = ?,
+		error_message = ''
 		WHERE id = ?`,
-		time.Now(), lastCommits, meta.Stars, meta.Forks, meta.OpenIssues, history, score, defaultBranch, id)
+		time.Now(), lastCommits, meta.Stars, meta.Forks, meta.OpenIssues, history, score, defaultBranch, dirSize(repoPath), id)
 
 	s.hub.BroadcastStatus(id, "synced", "")
 }

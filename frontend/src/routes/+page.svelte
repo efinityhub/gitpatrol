@@ -1,7 +1,8 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
   import { reposStore } from '$lib/repos.svelte';
-  import { getProgress } from '$lib/utils';
+  import { healthStore } from '$lib/health.svelte';
+  import { formatBytes, formatUptime, getProgress } from '$lib/utils';
   import { type Repository } from '$lib/types';
   import { onMount } from 'svelte';
 
@@ -28,6 +29,9 @@
     return () => clearInterval(timer);
   });
 
+  let protectedBytes = $derived(reposStore.repositories.reduce((sum, repo) => sum + (repo.size_bytes || 0), 0));
+  let uptime = $derived(healthStore.healthStatus?.checks.uptime);
+
   // Derived state for filtered repositories
   let filteredRepos = $derived(
     reposStore.repositories.filter(repo => {
@@ -53,12 +57,12 @@
   <div class="hero">
     <div class="hero-stats">
       <div class="stat-block">
-        <span class="stat-label">GLOBAL UPTIME</span>
-        <span class="stat-value">99.998%</span>
+        <span class="stat-label">UPTIME ({uptime?.window_days ?? 30}D)</span>
+        <span class="stat-value">{formatUptime(uptime?.percent)}</span>
       </div>
       <div class="stat-block">
         <span class="stat-label">TOTAL PROTECTED</span>
-        <span class="stat-value">1.4TB</span>
+        <span class="stat-value">{formatBytes(protectedBytes, 1)}</span>
       </div>
       <div class="stat-block">
         <span class="stat-label">ACTIVE MIRRORS</span>

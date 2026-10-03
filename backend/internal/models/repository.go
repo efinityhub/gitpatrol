@@ -18,6 +18,7 @@ type Repository struct {
 	HealthScore     int       `json:"health_score"`
 	DefaultBranch   string    `json:"default_branch"`
 	AutoPatrol      int       `json:"auto_patrol"`
+	SizeBytes       int64     `json:"size_bytes"`
 }
 
 type Metadata struct {

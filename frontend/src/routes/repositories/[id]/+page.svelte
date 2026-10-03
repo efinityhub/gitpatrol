@@ -157,7 +157,7 @@
         toastHandler.showToast(data.error || 'Recovery failed.', 'error');
       }
     } catch (e) {
-      toastHandler.showToast('Network error during recovery.', 'error');
+      toastHandler.showToast('Network error: the recovery could not be started. Check your connection and try again.', 'error');
     }
   }
 
@@ -180,7 +180,7 @@
         toastHandler.showToast('Failed to update configuration.', 'error');
       }
     } catch (e) {
-      toastHandler.showToast('Network error.', 'error');
+      toastHandler.showToast('Network error: configuration was not saved. Check your connection and try again.', 'error');
     }
   }
 
@@ -195,7 +195,7 @@
         goto('/');
       }
     } catch (e) {
-      toastHandler.showToast('Network error.', 'error');
+      toastHandler.showToast('Network error: the patrol was not terminated. Check your connection and try again.', 'error');
     }
   }
 
@@ -237,6 +237,20 @@
         </button>
       </div>
     </div>
+
+    {#if repo.status === 'error'}
+      <div class="error-banner">
+        <Icon name="alert-circle" size={20} stroke="var(--error)" style="flex-shrink: 0;" />
+        <div class="error-banner-body">
+          <div class="error-banner-title">LAST SYNC FAILED</div>
+          <div>{repo.error_message || 'The last sync did not complete.'}</div>
+          {#if repo.auto_patrol === 0}
+            <div class="error-banner-hint">Auto patrol is off for this repository, so it won't retry on its own. Fix the problem, retry the sync, then re-enable auto patrol in Settings.</div>
+          {/if}
+        </div>
+        <button class="secondary" onclick={syncNow}>RETRY SYNC</button>
+      </div>
+    {/if}
 
     <div class="stats-grid">
       <div class="stat-card">
@@ -307,6 +321,40 @@
 </div>
 
 <style>
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 0 40px 32px 40px;
+    padding: 16px 20px;
+    border-radius: 12px;
+    background: var(--error-container);
+    color: var(--on-surface);
+
+    @media (max-width: 1023px) { margin: 0 24px 24px 24px; }
+    @media (max-width: 767px) { flex-direction: column; align-items: flex-start; margin: 0 16px 24px 16px; }
+  }
+
+  .error-banner-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.9rem;
+  }
+
+  .error-banner-title {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    color: var(--error);
+  }
+
+  .error-banner-hint {
+    color: var(--on-surface-variant);
+    font-size: 0.8rem;
+  }
+
   .header {
     padding: 40px;
     display: flex;

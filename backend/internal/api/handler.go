@@ -231,7 +231,7 @@ func (h *Handler) UpdateUser(c echo.Context) error {
 }
 
 func (h *Handler) GetRepositories(c echo.Context) error {
-	rows, err := h.db.Query("SELECT id, name, url, interval_minutes, last_sync, status, last_commit, error_message, stars, forks, open_issues, commit_history, health_score, default_branch, auto_patrol FROM repositories")
+	rows, err := h.db.Query("SELECT id, name, url, interval_minutes, last_sync, status, last_commit, error_message, stars, forks, open_issues, commit_history, health_score, default_branch, auto_patrol, size_bytes FROM repositories")
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (h *Handler) GetRepositories(c echo.Context) error {
 		var r models.Repository
 		var lastSync sql.NullTime
 		var lastCommit, errMsg, commitHistory sql.NullString
-		err := rows.Scan(&r.ID, &r.Name, &r.URL, &r.IntervalMinutes, &lastSync, &r.Status, &lastCommit, &errMsg, &r.Stars, &r.Forks, &r.OpenIssues, &commitHistory, &r.HealthScore, &r.DefaultBranch, &r.AutoPatrol)
+		err := rows.Scan(&r.ID, &r.Name, &r.URL, &r.IntervalMinutes, &lastSync, &r.Status, &lastCommit, &errMsg, &r.Stars, &r.Forks, &r.OpenIssues, &commitHistory, &r.HealthScore, &r.DefaultBranch, &r.AutoPatrol, &r.SizeBytes)
 		if err != nil {
 			return err
 		}

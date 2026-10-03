@@ -4,16 +4,7 @@
   import { incidentsStore } from '$lib/incidents.svelte';
   import { apiFetch } from '$lib/client';
   import Icon from '$lib/components/Icon.svelte';
-
-  // Helper for byte conversion
-  function formatBytes(bytes: number, decimals = 2) {
-    if (!+bytes) return '0 Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-  }
+  import { formatBytes } from '$lib/utils';
 
   async function clearIncident(id: number) {
     await apiFetch(`/api/incidents/${id}/resolve`, { method: 'POST' });
@@ -47,7 +38,11 @@
           {healthStore.healthStatus.checks.internet.connected ? 'ESTABLISHED' : 'DISCONNECTED'}
         </div>
         <div class="metric-sub">
-          Latency: {healthStore.healthStatus.checks.internet.latency}
+          {#if healthStore.healthStatus.checks.internet.connected}
+            Latency: {healthStore.healthStatus.checks.internet.latency}
+          {:else}
+            No route to the internet. Syncs will fail until the connection is restored.
+          {/if}
         </div>
       </div>
 
@@ -60,6 +55,11 @@
         <div class="metric-sub">
           {formatBytes(healthStore.healthStatus.checks.disk.free_bytes)} free of {formatBytes(healthStore.healthStatus.checks.disk.total_bytes)}
         </div>
+        {#if parseFloat(healthStore.healthStatus.checks.disk.used_percent) > 90}
+          <div class="metric-sub" style="color: var(--error); margin-top: 8px;">
+            Almost full. Free up space or syncs will start failing.
+          </div>
+        {/if}
         <!-- Mini progress bar -->
         <div class="progress-bar-bg" style="margin-top: 16px;">
           <div class="progress-bar-fill" style="width: {healthStore.healthStatus.checks.disk.used_percent};"></div>
@@ -73,7 +73,11 @@
           {healthStore.healthStatus.checks.database ? 'ONLINE' : 'UNREACHABLE'}
         </div>
         <div class="metric-sub">
-          SQLite Core Engine
+          {#if healthStore.healthStatus.checks.database}
+            SQLite Core Engine
+          {:else}
+            The database did not respond. Check the server logs and free disk space.
+          {/if}
         </div>
       </div>
 
@@ -89,7 +93,9 @@
       </div>
     {:else}
       <div class="metric-card" style="grid-column: span 2; text-align: center;">
-        <p style="color: var(--on-surface-variant);">Awaiting telemetry data...</p>
+        <p style="color: var(--on-surface-variant);">
+          {healthStore.unreachable ? "Can't reach the GitPatrol server. Check that it's running, then refresh the page." : 'Awaiting telemetry data...'}
+        </p>
       </div>
     {/if}
   </div>
