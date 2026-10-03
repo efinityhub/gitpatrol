@@ -5,11 +5,21 @@ import (
 	"encoding/hex"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
 )
+
+const defaultEnvPath = "./db/gitpatrol.env"
+
+func EnvPath() string {
+	if p := os.Getenv("CONFIG_PATH"); p != "" {
+		return p
+	}
+	return defaultEnvPath
+}
 
 type Config struct {
 	JWTSecret          string
@@ -202,14 +212,20 @@ func (c *Config) save() error {
 		"GP_SECURE_COOKIE":     strconv.FormatBool(c.SecureCookie),
 	}
 
-	err := godotenv.Write(env, c.envPath)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(c.envPath), 0755); err != nil {
+		slog.Warn("Could not create config directory", "error", err)
+		return err
+	}
+
+	if err := godotenv.Write(env, c.envPath); err != nil {
 		slog.Warn("Could not save .env file", "error", err)
 		return err
-	} else {
-		slog.Info("Secrets generated and saved", "path", c.envPath)
-		return nil
 	}
+	if err := os.Chmod(c.envPath, 0600); err != nil {
+		slog.Warn("Could not restrict .env file permissions", "error", err)
+	}
+	slog.Info("Secrets generated and saved", "path", c.envPath)
+	return nil
 }
 
 func generateRandomString(n int) string {

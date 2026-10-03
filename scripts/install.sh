@@ -139,8 +139,10 @@ fi
 msg_info "Configuring environment"
 if [ ! -f "$DB_DIR/gitpatrol.env" ]; then
     cat > "$DB_DIR/gitpatrol.env" <<EOF
+CONFIG_PATH=$DB_DIR/gitpatrol.env
 DB_PATH=$DB_DIR/gitpatrol.db
-WORKER_COUNT=3
+DATA_DIR=$DATA_DIR/data
+WORKERS=3
 PORT=$BACKEND_PORT
 EOF
 fi

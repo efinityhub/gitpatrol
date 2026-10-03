@@ -29,6 +29,7 @@ COPY --from=backend-builder /app/gitpatrol .
 # Volume for persistent data (mirrors, database)
 VOLUME /var/lib/gitpatrol
 # Default Environment Variables
+ENV CONFIG_PATH=/var/lib/gitpatrol/db/gitpatrol.env
 ENV DB_PATH=/var/lib/gitpatrol/db/gitpatrol.db
 ENV DATA_DIR=/var/lib/gitpatrol/data
 ENV WORKERS=3
