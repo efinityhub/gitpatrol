@@ -8,4 +8,5 @@ services:
       - "8080:8080"
     volumes:
       - ./data:/var/lib/gitpatrol
+    stop_grace_period: 35s
     restart: unless-stopped

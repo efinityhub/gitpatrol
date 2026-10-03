@@ -21,7 +21,10 @@ import (
 	"gitpatrol/internal/websocket"
 )
 
-var errSyncTimeout = errors.New("sync timed out")
+var (
+	errSyncTimeout   = errors.New("sync timed out")
+	errSyncCancelled = errors.New("sync cancelled")
+)
 
 type RepoService struct {
 	db  *database.DB
@@ -59,18 +62,31 @@ func NewRepoService(db *database.DB, hub *websocket.Hub, cfg *config.Config) *Re
 	}
 }
 
-func (s *RepoService) runGit(args ...string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.cfg.SyncTimeoutMinutes)*time.Minute)
+func (s *RepoService) runGit(ctx context.Context, args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(s.cfg.SyncTimeoutMinutes)*time.Minute)
 	defer cancel()
 
 	output, err := exec.CommandContext(ctx, "git", args...).CombinedOutput()
-	if err != nil && ctx.Err() == context.DeadlineExceeded {
-		return output, errSyncTimeout
+	if err != nil {
+		switch ctx.Err() {
+		case context.DeadlineExceeded:
+			return output, errSyncTimeout
+		case context.Canceled:
+			return output, errSyncCancelled
+		}
 	}
 	return output, err
 }
 
-func (s *RepoService) SyncRepo(id int, url, name string) {
+func (s *RepoService) failSync(id int, output []byte, err error) {
+	if errors.Is(err, errSyncCancelled) {
+		s.UpdateStatus(id, "pending", "")
+		return
+	}
+	s.UpdateStatus(id, "error", s.formatSyncError(output, err))
+}
+
+func (s *RepoService) SyncRepo(ctx context.Context, id int, url, name string) {
 	s.UpdateStatus(id, "syncing", "")
 
 	repoPath := RepoPath(s.cfg.DataDir, id, name)
@@ -81,15 +97,15 @@ func (s *RepoService) SyncRepo(id int, url, name string) {
 	}
 
 	if _, statErr := os.Stat(repoPath); os.IsNotExist(statErr) {
-		output, cloneErr := s.runGit(append(authArgs, "clone", url, repoPath)...)
+		output, cloneErr := s.runGit(ctx, append(authArgs, "clone", url, repoPath)...)
 		if cloneErr != nil {
-			s.UpdateStatus(id, "error", s.formatSyncError(output, cloneErr))
+			s.failSync(id, output, cloneErr)
 			return
 		}
 	} else {
-		output, fetchErr := s.runGit(append(authArgs, "-C", repoPath, "fetch", "--all", "--tags", "--force")...)
+		output, fetchErr := s.runGit(ctx, append(authArgs, "-C", repoPath, "fetch", "--all", "--tags", "--force")...)
 		if fetchErr != nil {
-			s.UpdateStatus(id, "error", s.formatSyncError(output, fetchErr))
+			s.failSync(id, output, fetchErr)
 			return
 		}
 	}
@@ -115,7 +131,7 @@ func (s *RepoService) SyncRepo(id int, url, name string) {
 		}
 
 		if wikiURL, exists := src.GetWikiURL(url); exists {
-			s.syncWiki(wikiURL, repoPath, authArgs)
+			s.syncWiki(ctx, wikiURL, repoPath, authArgs)
 		}
 
 		metadataPath := filepath.Join(repoPath, "metadata")
@@ -185,12 +201,12 @@ func (s *RepoService) UpdateStatus(id int, status, errMsg string) {
 	s.hub.BroadcastStatus(id, status, errMsg)
 }
 
-func (s *RepoService) syncWiki(url string, repoPath string, authArgs []string) {
+func (s *RepoService) syncWiki(ctx context.Context, url string, repoPath string, authArgs []string) {
 	wikiPath := filepath.Join(repoPath, "wiki")
 	if _, err := os.Stat(wikiPath); os.IsNotExist(err) {
-		s.runGit(append(authArgs, "clone", url, wikiPath)...)
+		s.runGit(ctx, append(authArgs, "clone", url, wikiPath)...)
 	} else {
-		s.runGit(append(authArgs, "-C", wikiPath, "fetch", "--all", "--tags", "--force")...)
+		s.runGit(ctx, append(authArgs, "-C", wikiPath, "fetch", "--all", "--tags", "--force")...)
 	}
 }
 
