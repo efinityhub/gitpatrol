@@ -37,6 +37,7 @@ Running GitPatrol via Docker Compose is the easiest way to ensure all dependenci
     | `WORKERS` | Number of concurrent sync workers. | `3` |
     | `LOG_RETENTION_DAYS` | Days to keep rows in the system logs table. | `7` |
     | `LOG_MAX_ROWS` | Maximum system log rows kept, whichever limit hits first. | `10000` |
+    | `SYNC_TIMEOUT_MINUTES` | Max time a single clone/fetch may run before it's killed, so a stuck remote can't block a sync worker forever. | `10` |
     | `GITHUB_TOKEN` | GitHub token used for private repos and to avoid API rate limits. | none |
     | `GITLAB_URL` | Base URL of your GitLab instance. | `https://gitlab.com` |
     | `GITLAB_TOKEN` | GitLab token used for private repos and to avoid API rate limits. | none |

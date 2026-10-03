@@ -1,7 +1,9 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -18,6 +20,8 @@ import (
 	"gitpatrol/internal/source"
 	"gitpatrol/internal/websocket"
 )
+
+var errSyncTimeout = errors.New("sync timed out")
 
 type RepoService struct {
 	db  *database.DB
@@ -55,6 +59,17 @@ func NewRepoService(db *database.DB, hub *websocket.Hub, cfg *config.Config) *Re
 	}
 }
 
+func (s *RepoService) runGit(args ...string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.cfg.SyncTimeoutMinutes)*time.Minute)
+	defer cancel()
+
+	output, err := exec.CommandContext(ctx, "git", args...).CombinedOutput()
+	if err != nil && ctx.Err() == context.DeadlineExceeded {
+		return output, errSyncTimeout
+	}
+	return output, err
+}
+
 func (s *RepoService) SyncRepo(id int, url, name string) {
 	s.UpdateStatus(id, "syncing", "")
 
@@ -66,15 +81,15 @@ func (s *RepoService) SyncRepo(id int, url, name string) {
 	}
 
 	if _, statErr := os.Stat(repoPath); os.IsNotExist(statErr) {
-		cmd := exec.Command("git", append(authArgs, "clone", url, repoPath)...)
-		if output, cloneErr := cmd.CombinedOutput(); cloneErr != nil {
-			s.UpdateStatus(id, "error", formatCLIError(scrubTokens(string(output), s.cfg), cloneErr))
+		output, cloneErr := s.runGit(append(authArgs, "clone", url, repoPath)...)
+		if cloneErr != nil {
+			s.UpdateStatus(id, "error", s.formatSyncError(output, cloneErr))
 			return
 		}
 	} else {
-		cmd := exec.Command("git", append(authArgs, "-C", repoPath, "fetch", "--all", "--tags", "--force")...)
-		if output, fetchErr := cmd.CombinedOutput(); fetchErr != nil {
-			s.UpdateStatus(id, "error", formatCLIError(scrubTokens(string(output), s.cfg), fetchErr))
+		output, fetchErr := s.runGit(append(authArgs, "-C", repoPath, "fetch", "--all", "--tags", "--force")...)
+		if fetchErr != nil {
+			s.UpdateStatus(id, "error", s.formatSyncError(output, fetchErr))
 			return
 		}
 	}
@@ -173,9 +188,9 @@ func (s *RepoService) UpdateStatus(id int, status, errMsg string) {
 func (s *RepoService) syncWiki(url string, repoPath string, authArgs []string) {
 	wikiPath := filepath.Join(repoPath, "wiki")
 	if _, err := os.Stat(wikiPath); os.IsNotExist(err) {
-		exec.Command("git", append(authArgs, "clone", url, wikiPath)...).Run()
+		s.runGit(append(authArgs, "clone", url, wikiPath)...)
 	} else {
-		exec.Command("git", append(authArgs, "-C", wikiPath, "fetch", "--all", "--tags", "--force")...).Run()
+		s.runGit(append(authArgs, "-C", wikiPath, "fetch", "--all", "--tags", "--force")...)
 	}
 }
 
@@ -289,6 +304,13 @@ func (s *RepoService) downloadAvatar(url string, username string) {
 	defer out.Close()
 
 	io.Copy(out, resp.Body)
+}
+
+func (s *RepoService) formatSyncError(output []byte, err error) string {
+	if errors.Is(err, errSyncTimeout) {
+		return fmt.Sprintf("Sync timed out after %d minutes. The remote may be slow, rate-limited, or unreachable.", s.cfg.SyncTimeoutMinutes)
+	}
+	return formatCLIError(scrubTokens(string(output), s.cfg), err)
 }
 
 func formatCLIError(output string, err error) string {

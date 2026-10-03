@@ -27,6 +27,7 @@ type Config struct {
 	ExportDestination  string
 	LogRetentionDays   int
 	LogMaxRows         int
+	SyncTimeoutMinutes int
 	envPath            string
 }
 
@@ -108,8 +109,15 @@ func LoadConfig(envPath string) *Config {
 		modified = true
 	}
 
+	syncTimeoutMinutes, err := strconv.Atoi(os.Getenv("SYNC_TIMEOUT_MINUTES"))
+	if syncTimeoutMinutes == 0 || err != nil {
+		syncTimeoutMinutes = 10
+		os.Setenv("SYNC_TIMEOUT_MINUTES", strconv.Itoa(syncTimeoutMinutes))
+		modified = true
+	}
+
 	if modified {
-		_ = saveEnv(envPath, jwtSecret, pepper, dbPath, dataDir, port, corsOrigins, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest, workerCount, logRetentionDays, logMaxRows)
+		_ = saveEnv(envPath, jwtSecret, pepper, dbPath, dataDir, port, corsOrigins, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest, workerCount, logRetentionDays, logMaxRows, syncTimeoutMinutes)
 	}
 
 	return &Config{
@@ -128,6 +136,7 @@ func LoadConfig(envPath string) *Config {
 		ExportDestination:  exportDest,
 		LogRetentionDays:   logRetentionDays,
 		LogMaxRows:         logMaxRows,
+		SyncTimeoutMinutes: syncTimeoutMinutes,
 		envPath:            envPath,
 	}
 }
@@ -158,12 +167,12 @@ func (c *Config) UpdateTokens(github, gitlabURL, gitlabToken, giteaURL, giteaTok
 		os.Setenv("EXPORT_DESTINATION", exportDest)
 	}
 
-	err := saveEnv(c.envPath, c.JWTSecret, c.PasswordPepper, c.DBPath, c.DataDir, c.Port, strings.Join(c.CorsAllowedOrigins, ","), c.GithubToken, c.GitlabURL, c.GitlabToken, c.GiteaURL, c.GiteaToken, c.ExportDestination, c.WorkerCount, c.LogRetentionDays, c.LogMaxRows)
+	err := saveEnv(c.envPath, c.JWTSecret, c.PasswordPepper, c.DBPath, c.DataDir, c.Port, strings.Join(c.CorsAllowedOrigins, ","), c.GithubToken, c.GitlabURL, c.GitlabToken, c.GiteaURL, c.GiteaToken, c.ExportDestination, c.WorkerCount, c.LogRetentionDays, c.LogMaxRows, c.SyncTimeoutMinutes)
 
 	return err
 }
 
-func saveEnv(path, jwt, pepper, dbPath, dataDir, port, corsOrigins, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest string, workerCount, logRetentionDays, logMaxRows int) error {
+func saveEnv(path, jwt, pepper, dbPath, dataDir, port, corsOrigins, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest string, workerCount, logRetentionDays, logMaxRows, syncTimeoutMinutes int) error {
 	env := map[string]string{
 		"JWT_SECRET":           jwt,
 		"PASSWORD_PEPPER":      pepper,
@@ -180,6 +189,7 @@ func saveEnv(path, jwt, pepper, dbPath, dataDir, port, corsOrigins, github, gitl
 		"EXPORT_DESTINATION":   exportDest,
 		"LOG_RETENTION_DAYS":   strconv.Itoa(logRetentionDays),
 		"LOG_MAX_ROWS":         strconv.Itoa(logMaxRows),
+		"SYNC_TIMEOUT_MINUTES": strconv.Itoa(syncTimeoutMinutes),
 	}
 
 	err := godotenv.Write(env, path)
