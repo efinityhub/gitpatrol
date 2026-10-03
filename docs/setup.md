@@ -24,10 +24,11 @@ Running GitPatrol via Docker Compose is the easiest way to ensure all dependenci
     cd gitpatrol
     ```
 2.  **Environment Configuration:**
-    The backend automatically generates secrets and sensible defaults on first run and writes them to `gitpatrol.env` next to the database, but you can override any of these via your environment or that file:
+    The backend automatically generates secrets and sensible defaults on first run and writes them to `gitpatrol.env` (see `CONFIG_PATH`), but you can override any of these via your environment or that file:
 
     | Variable | Description | Default |
     |----------|-------------|---------|
+    | `CONFIG_PATH` | Where the generated secrets and settings are saved. Keep it on a persistent volume: if it is lost, a new `PASSWORD_PEPPER` is generated and the existing password stops working. | `./db/gitpatrol.env` |
     | `JWT_SECRET` | Secret key for signing session JWTs. | Randomly generated |
     | `PASSWORD_PEPPER` | Pepper mixed into password hashes. | Randomly generated |
     | `DB_PATH` | Path to the SQLite database file. | `./db/gitpatrol.db` |
@@ -75,4 +76,4 @@ If running in Docker, ensure the following volumes are mapped to persistent stor
 - `/app/data/`: Contains physical Git mirrors, avatars, and archived metadata.
 
 **`docker-compose.production.yml` (single-binary image):**
-- `/var/lib/gitpatrol/`: A single mount containing both `db/` and `data/` (set via `DB_PATH` and `DATA_DIR` in the image).
+- `/var/lib/gitpatrol/`: A single mount containing both `db/` and `data/` (set via `CONFIG_PATH`, `DB_PATH` and `DATA_DIR` in the image). `db/` holds `gitpatrol.db` and `gitpatrol.env`.

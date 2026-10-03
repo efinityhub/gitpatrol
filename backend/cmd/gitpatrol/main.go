@@ -31,7 +31,7 @@ var uiBuild embed.FS
 const shutdownTimeout = 30 * time.Second
 
 func main() {
-	cfg := config.LoadConfig("./db/gitpatrol.env")
+	cfg := config.LoadConfig(config.EnvPath())
 
 	db, err := database.NewDB(cfg.DBPath)
 	if err != nil {
