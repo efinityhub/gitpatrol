@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 
 	"gitpatrol/internal/database"
 )
@@ -15,6 +16,9 @@ type DBHandler struct {
 	db          *database.DB
 	wsBroadcast func(map[string]interface{})
 	logChan     chan logEntry
+	mu          sync.RWMutex
+	closed      bool
+	done        chan struct{}
 }
 
 type logEntry struct {
@@ -36,6 +40,7 @@ func NewDBHandler(db *database.DB, wsBroadcast func(map[string]interface{})) *DB
 		db:          db,
 		wsBroadcast: wsBroadcast,
 		logChan:     make(chan logEntry, 1000), // Buffer for logs
+		done:        make(chan struct{}),
 	}
 	
 	// Start background worker to write logs sequentially
@@ -45,6 +50,7 @@ func NewDBHandler(db *database.DB, wsBroadcast func(map[string]interface{})) *DB
 }
 
 func (h *DBHandler) processLogs() {
+	defer close(h.done)
 	for entry := range h.logChan {
 		_, dbErr := h.db.Exec(`
 			INSERT INTO system_logs (level, message, attributes, created_at)
@@ -82,6 +88,12 @@ func (h *DBHandler) Handle(ctx context.Context, r slog.Record) error {
 		"time":       r.Time,
 	}
 
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	if h.closed {
+		return err
+	}
+
 	select {
 	case h.logChan <- logEntry{
 		Level:      r.Level.String(),
@@ -98,9 +110,21 @@ func (h *DBHandler) Handle(ctx context.Context, r slog.Record) error {
 	return err
 }
 
-// Setup initializes the global slog logger with the custom DBHandler
-func Setup(db *database.DB, wsBroadcast func(map[string]interface{})) {
+func (h *DBHandler) Close() {
+	h.mu.Lock()
+	if !h.closed {
+		h.closed = true
+		close(h.logChan)
+	}
+	h.mu.Unlock()
+	<-h.done
+}
+
+// Setup initializes the global slog logger with the custom DBHandler and
+// returns a function that flushes queued entries to the database.
+func Setup(db *database.DB, wsBroadcast func(map[string]interface{})) func() {
 	handler := NewDBHandler(db, wsBroadcast)
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
+	return handler.Close
 }

@@ -35,7 +35,9 @@ The system consists of three main components:
 - **Authentication:** Single-user Community Edition restricted to one admin user.
 - **Session Management:** Secure Http-Only cookies with configurable `Secure` flags.
 - **Password Safety:** Bcrypt hashing with a system-level pepper generated on first run.
-- **CSRF Protection:** SameSite cookie policies implemented.
+- **CSRF Protection:** Session cookies are `SameSite=Lax`.
+- **Brute-force Protection:** Login and registration share a per-client rate limit (5 attempts, then one every 12 seconds). Clients are identified by their direct connection address, so behind a reverse proxy all users share one budget.
+- **Graceful Shutdown:** On `SIGINT`/`SIGTERM` GitPatrol stops accepting requests, lets running syncs finish for up to 30 seconds (then cancels them and returns the repository to `pending`), flushes queued logs, and closes the database.
 
 ## Design Principles
 - **Minimalist:** No heavy frameworks where not needed (e.g., vanilla DOM manipulations in high-performance areas).

@@ -28,6 +28,7 @@ type Config struct {
 	LogRetentionDays   int
 	LogMaxRows         int
 	SyncTimeoutMinutes int
+	SecureCookie       bool
 	envPath            string
 }
 
@@ -116,11 +117,14 @@ func LoadConfig(envPath string) *Config {
 		modified = true
 	}
 
-	if modified {
-		_ = saveEnv(envPath, jwtSecret, pepper, dbPath, dataDir, port, corsOrigins, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest, workerCount, logRetentionDays, logMaxRows, syncTimeoutMinutes)
+	secureCookie, err := strconv.ParseBool(os.Getenv("GP_SECURE_COOKIE"))
+	if err != nil {
+		secureCookie = false
+		os.Setenv("GP_SECURE_COOKIE", "false")
+		modified = true
 	}
 
-	return &Config{
+	cfg := &Config{
 		JWTSecret:          jwtSecret,
 		PasswordPepper:     pepper,
 		DBPath:             dbPath,
@@ -137,8 +141,15 @@ func LoadConfig(envPath string) *Config {
 		LogRetentionDays:   logRetentionDays,
 		LogMaxRows:         logMaxRows,
 		SyncTimeoutMinutes: syncTimeoutMinutes,
+		SecureCookie:       secureCookie,
 		envPath:            envPath,
 	}
+
+	if modified {
+		_ = cfg.save()
+	}
+
+	return cfg
 }
 
 func (c *Config) UpdateTokens(github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest string) error {
@@ -167,37 +178,36 @@ func (c *Config) UpdateTokens(github, gitlabURL, gitlabToken, giteaURL, giteaTok
 		os.Setenv("EXPORT_DESTINATION", exportDest)
 	}
 
-	err := saveEnv(c.envPath, c.JWTSecret, c.PasswordPepper, c.DBPath, c.DataDir, c.Port, strings.Join(c.CorsAllowedOrigins, ","), c.GithubToken, c.GitlabURL, c.GitlabToken, c.GiteaURL, c.GiteaToken, c.ExportDestination, c.WorkerCount, c.LogRetentionDays, c.LogMaxRows, c.SyncTimeoutMinutes)
-
-	return err
+	return c.save()
 }
 
-func saveEnv(path, jwt, pepper, dbPath, dataDir, port, corsOrigins, github, gitlabURL, gitlabToken, giteaURL, giteaToken, exportDest string, workerCount, logRetentionDays, logMaxRows, syncTimeoutMinutes int) error {
+func (c *Config) save() error {
 	env := map[string]string{
-		"JWT_SECRET":           jwt,
-		"PASSWORD_PEPPER":      pepper,
-		"DB_PATH":              dbPath,
-		"DATA_DIR":             dataDir,
-		"PORT":                 port,
-		"CORS_ALLOWED_ORIGINS": corsOrigins,
-		"WORKERS":              strconv.Itoa(workerCount),
-		"GITHUB_TOKEN":         github,
-		"GITLAB_URL":           gitlabURL,
-		"GITLAB_TOKEN":         gitlabToken,
-		"GITEA_URL":            giteaURL,
-		"GITEA_TOKEN":          giteaToken,
-		"EXPORT_DESTINATION":   exportDest,
-		"LOG_RETENTION_DAYS":   strconv.Itoa(logRetentionDays),
-		"LOG_MAX_ROWS":         strconv.Itoa(logMaxRows),
-		"SYNC_TIMEOUT_MINUTES": strconv.Itoa(syncTimeoutMinutes),
+		"JWT_SECRET":           c.JWTSecret,
+		"PASSWORD_PEPPER":      c.PasswordPepper,
+		"DB_PATH":              c.DBPath,
+		"DATA_DIR":             c.DataDir,
+		"PORT":                 c.Port,
+		"CORS_ALLOWED_ORIGINS": strings.Join(c.CorsAllowedOrigins, ","),
+		"WORKERS":              strconv.Itoa(c.WorkerCount),
+		"GITHUB_TOKEN":         c.GithubToken,
+		"GITLAB_URL":           c.GitlabURL,
+		"GITLAB_TOKEN":         c.GitlabToken,
+		"GITEA_URL":            c.GiteaURL,
+		"GITEA_TOKEN":          c.GiteaToken,
+		"EXPORT_DESTINATION":   c.ExportDestination,
+		"LOG_RETENTION_DAYS":   strconv.Itoa(c.LogRetentionDays),
+		"LOG_MAX_ROWS":         strconv.Itoa(c.LogMaxRows),
+		"SYNC_TIMEOUT_MINUTES": strconv.Itoa(c.SyncTimeoutMinutes),
+		"GP_SECURE_COOKIE":     strconv.FormatBool(c.SecureCookie),
 	}
 
-	err := godotenv.Write(env, path)
+	err := godotenv.Write(env, c.envPath)
 	if err != nil {
 		slog.Warn("Could not save .env file", "error", err)
 		return err
 	} else {
-		slog.Info("Secrets generated and saved", "path", path)
+		slog.Info("Secrets generated and saved", "path", c.envPath)
 		return nil
 	}
 }

@@ -22,6 +22,9 @@ type HealthService struct {
 	status      string
 	checks      map[string]interface{}
 	mu          sync.RWMutex
+	stop        chan struct{}
+	stopOnce    sync.Once
+	done        chan struct{}
 }
 
 func NewHealthService(db *database.DB, hub *websocket.Hub, syncManager *SyncManager, cfg *config.Config) *HealthService {
@@ -32,18 +35,32 @@ func NewHealthService(db *database.DB, hub *websocket.Hub, syncManager *SyncMana
 		config:      cfg,
 		status:      "healthy",
 		checks:      make(map[string]interface{}),
+		stop:        make(chan struct{}),
+		done:        make(chan struct{}),
 	}
 }
 
 func (s *HealthService) Start() {
 	slog.Info("Starting background health monitoring")
 	go func() {
+		defer close(s.done)
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
 		for {
 			s.PerformCheck()
 			s.CleanupLogs()
-			time.Sleep(1 * time.Minute)
+			select {
+			case <-ticker.C:
+			case <-s.stop:
+				return
+			}
 		}
 	}()
+}
+
+func (s *HealthService) Stop() {
+	s.stopOnce.Do(func() { close(s.stop) })
+	<-s.done
 }
 
 func (s *HealthService) CleanupLogs() {

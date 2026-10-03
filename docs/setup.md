@@ -43,7 +43,7 @@ Running GitPatrol via Docker Compose is the easiest way to ensure all dependenci
     | `GITLAB_TOKEN` | GitLab token used for private repos and to avoid API rate limits. | none |
     | `GITEA_URL` / `GITEA_TOKEN` | Base URL and token for a Gitea recovery vault. | none |
     | `EXPORT_DESTINATION` | Default one-click export target (`github`, `gitlab`, or `gitea`). | none |
-    | `GP_SECURE_COOKIE` | Set to `true` to enable the Secure flag on the session cookie. | *(planned — not implemented yet)* |
+    | `GP_SECURE_COOKIE` | Set to `true` to mark the session cookie `Secure`. Only enable this when GitPatrol is served over HTTPS, otherwise browsers will drop the cookie and login will appear to do nothing. | `false` |
 
 3.  **Spin up the containers:**
     ```bash

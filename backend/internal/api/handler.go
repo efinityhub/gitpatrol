@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -20,6 +21,7 @@ import (
 	"gitpatrol/internal/service"
 	"gitpatrol/internal/websocket"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 type Handler struct {
@@ -46,11 +48,30 @@ func NewHandler(db *database.DB, authService *auth.AuthService, syncManager *ser
 	}
 }
 
+func authRateLimiter() echo.MiddlewareFunc {
+	return middleware.RateLimiterWithConfig(middleware.RateLimiterConfig{
+		Store: middleware.NewRateLimiterMemoryStoreWithConfig(middleware.RateLimiterMemoryStoreConfig{
+			Rate:      5.0 / 60,
+			Burst:     5,
+			ExpiresIn: 3 * time.Minute,
+		}),
+		IdentifierExtractor: func(c echo.Context) (string, error) {
+			host, _, err := net.SplitHostPort(c.Request().RemoteAddr)
+			return host, err
+		},
+		DenyHandler: func(c echo.Context, identifier string, err error) error {
+			return c.JSON(http.StatusTooManyRequests, map[string]string{"error": "Too many attempts. Please wait a moment and try again."})
+		},
+	})
+}
+
 func (h *Handler) RegisterRoutes(e *echo.Echo) {
+	authLimiter := authRateLimiter()
+
 	// Public Auth Routes
 	e.GET("/api/auth/status", h.CheckAuthStatus)
-	e.POST("/api/auth/register", h.Register)
-	e.POST("/api/auth/login", h.Login)
+	e.POST("/api/auth/register", h.Register, authLimiter)
+	e.POST("/api/auth/login", h.Login, authLimiter)
 	e.POST("/api/auth/logout", h.Logout)
 	e.GET("/api/repositories/:id/badge", h.GetHealthBadge)
 
@@ -149,24 +170,24 @@ func (h *Handler) Login(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "login successful"})
 }
 
+func (h *Handler) authCookie(value string, expires time.Time) *http.Cookie {
+	return &http.Cookie{
+		Name:     "token",
+		Value:    value,
+		Expires:  expires,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.config.SecureCookie,
+		SameSite: http.SameSiteLaxMode,
+	}
+}
+
 func (h *Handler) setAuthCookie(c echo.Context, token string) {
-	cookie := new(http.Cookie)
-	cookie.Name = "token"
-	cookie.Value = token
-	cookie.Expires = time.Now().Add(72 * time.Hour)
-	cookie.Path = "/"
-	cookie.HttpOnly = true
-	c.SetCookie(cookie)
+	c.SetCookie(h.authCookie(token, time.Now().Add(72*time.Hour)))
 }
 
 func (h *Handler) Logout(c echo.Context) error {
-	cookie := new(http.Cookie)
-	cookie.Name = "token"
-	cookie.Value = ""
-	cookie.Expires = time.Now().Add(-1 * time.Hour)
-	cookie.Path = "/"
-	cookie.HttpOnly = true
-	c.SetCookie(cookie)
+	c.SetCookie(h.authCookie("", time.Now().Add(-1*time.Hour)))
 	return c.JSON(http.StatusOK, map[string]string{"message": "logged out"})
 }
 
