@@ -73,8 +73,15 @@ func createTables(db *sql.DB) error {
 			commit_history TEXT,
 			health_score INTEGER DEFAULT 0,
 			default_branch TEXT DEFAULT 'main',
-			auto_patrol INTEGER DEFAULT 1
+			auto_patrol INTEGER DEFAULT 1,
+			size_bytes INTEGER DEFAULT 0
 		);`,
+		`CREATE TABLE IF NOT EXISTS health_checks (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			checked_at TIMESTAMP,
+			status TEXT
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_health_checks_checked_at ON health_checks(checked_at);`,
 	}
 
 	for _, q := range queries {
@@ -94,6 +101,7 @@ func createTables(db *sql.DB) error {
 		"ALTER TABLE repositories ADD COLUMN health_score INTEGER DEFAULT 0",
 		"ALTER TABLE repositories ADD COLUMN default_branch TEXT DEFAULT 'main'",
 		"ALTER TABLE repositories ADD COLUMN auto_patrol INTEGER DEFAULT 1",
+		"ALTER TABLE repositories ADD COLUMN size_bytes INTEGER DEFAULT 0",
 	}
 	for _, c := range cols {
 		_, _ = db.Exec(c)

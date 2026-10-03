@@ -1,5 +1,5 @@
 import { API_URL } from '$lib/client';
-import type { Repository } from '$lib/types';
+import type { HealthStatus, Repository } from '$lib/types';
 
 export function getNormalizedUrl(url: string) {
   if (!url || url.length < 3) return '';
@@ -105,4 +105,41 @@ export function getRemainingTime(repo: Repository, withText: boolean = true, now
   } else {
     return parts.join(' ');
   }
+}
+
+export function formatBytes(bytes: number, decimals = 2): string {
+  if (!+bytes) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(k)), sizes.length - 1);
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(decimals))} ${sizes[i]}`;
+}
+
+export function formatUptime(percent: number | null | undefined): string {
+  if (percent == null) return '—';
+  if (percent >= 100) return '100%';
+  return `${(Math.floor(percent * 100) / 100).toFixed(2)}%`;
+}
+
+export function describeHealth(health: HealthStatus | null, unreachable: boolean) {
+  if (!health) {
+    return unreachable
+      ? { status: 'offline', label: 'OFFLINE', tip: "Can't reach the GitPatrol server. Check that it's running, then refresh the page." }
+      : { status: 'offline', label: 'CONNECTING', tip: 'Checking system health...' };
+  }
+
+  const { internet, disk, database } = health.checks;
+  if (health.status === 'healthy') {
+    return { status: health.status, label: 'SYSTEM ONLINE', tip: `Internet: OK | Disk: ${disk?.used_percent ?? 'n/a'}` };
+  }
+  if (internet && !internet.connected) {
+    return { status: health.status, label: 'NO INTERNET', tip: 'No internet connection. Syncs will fail until it is restored.' };
+  }
+  if (database === false) {
+    return { status: health.status, label: 'DATABASE DOWN', tip: 'The database is unreachable. Check the server logs and free disk space.' };
+  }
+  if (disk && parseFloat(disk.used_percent) > 90) {
+    return { status: health.status, label: 'DISK ALMOST FULL', tip: `Disk is ${disk.used_percent} full. Free up space or syncs will start failing.` };
+  }
+  return { status: health.status, label: health.status.toUpperCase(), tip: 'Open System Health for details.' };
 }

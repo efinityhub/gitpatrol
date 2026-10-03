@@ -2,8 +2,11 @@
   import { healthStore } from '$lib/health.svelte';
   import { incidentsStore } from '$lib/incidents.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import { describeHealth } from '$lib/utils';
 
   let { viewMode = $bindable(), showIncidentModal = $bindable(), searchQuery = $bindable() } = $props();
+
+  let healthBadge = $derived(describeHealth(healthStore.healthStatus, healthStore.unreachable));
 </script>
 
 <header class="top-bar">
@@ -30,12 +33,12 @@
       {/if}
     </button>
 
-    <div 
-      class="badge status-{healthStore.healthStatus?.status || 'offline'}" 
-      data-tooltip-bottom={healthStore.healthStatus ? `Internet: ${healthStore.healthStatus.checks.internet.connected ? 'OK' : 'OFF'} | Disk: ${healthStore.healthStatus.checks.disk.used_percent}` : 'Checking...'}
+    <div
+      class="badge status-{healthBadge.status}"
+      data-tooltip-bottom={healthBadge.tip}
     >
       <span class="dot"></span>
-      {healthStore.healthStatus ? (healthStore.healthStatus.status === 'healthy' ? 'SYSTEM ONLINE' : healthStore.healthStatus.status.toUpperCase()) : 'OFFLINE'}
+      {healthBadge.label}
     </div>
   </div>
 </header>

@@ -61,6 +61,13 @@
     </div>
   </div>
 
+  {#if repo.status === 'error' && repo.error_message}
+    <div style="display: flex; align-items: flex-start; gap: 8px; margin-top: 16px; padding: 10px 12px; border-radius: 8px; background: var(--error-container); color: var(--error); font-size: 0.8rem; line-height: 1.4;">
+      <Icon name="alert-circle" size={14} strokeWidth={3} style="flex-shrink: 0; margin-top: 2px;" />
+      <span>{repo.error_message}</span>
+    </div>
+  {/if}
+
   <div class="stats-row">
     <div class="stat-item" data-tooltip="GitHub Stars">
       <div style="display: flex; gap: .25rem; align-items: center;">

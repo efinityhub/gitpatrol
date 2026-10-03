@@ -26,6 +26,8 @@ The "Health Score" is a unique metric calculated on each sync to help you assess
 - **Tabbed Interface:** Switch between **Briefing** (README), **Intel** (Issues), **Chronicle** (Releases), **Wiki**, and **Logs** (Commits).
 - **Commit History Visualization:** See a 14-day activity sparkline for every repository at a glance.
 - **Status Indicators:** Clear visual cues for `pending`, `syncing`, `synced`, or `error` states.
+- **Fleet Stats:** The dashboard header shows the real on-disk size of all mirrors (measured after each sync) and a 30-day uptime percentage, the share of the once-a-minute health checks that came back healthy. Uptime only counts while GitPatrol is running, and shows `—` until the first check completes.
+- **Actionable Errors:** A failed repository shows why it failed (on its card, in list view, and in a banner with a Retry button on its detail page), and the status badge explains problems like "No internet" or "Disk almost full" instead of a bare "DEGRADED".
 
 ## 🏷️ Health Badges
 GitPatrol can generate dynamic SVG badges for any repository you are monitoring. These badges are perfect for embedding in your repository READMEs or external status pages.

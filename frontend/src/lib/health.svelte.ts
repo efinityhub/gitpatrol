@@ -4,12 +4,14 @@ import type { HealthStatus } from './types';
 
 class HealthStore {
   healthStatus = $state<HealthStatus | null>(null);
+  unreachable = $state(false);
   private healthTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     if (typeof window !== 'undefined') {
       window.addEventListener('gitpatrol:logged_out', () => {
         this.healthStatus = null;
+        this.unreachable = false;
         if (this.healthTimer) {
           clearInterval(this.healthTimer);
           this.healthTimer = null;
@@ -23,11 +25,14 @@ class HealthStore {
       const res = await apiFetch('/api/health');
       if (res.ok) {
         this.healthStatus = await res.json();
+        this.unreachable = false;
       } else {
         this.healthStatus = null;
+        this.unreachable = true;
       }
     } catch (e) {
       this.healthStatus = null;
+      this.unreachable = true;
     }
   }
 

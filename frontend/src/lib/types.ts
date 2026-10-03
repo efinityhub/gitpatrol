@@ -14,6 +14,7 @@ export interface Repository {
   health_score: number;
   default_branch: string;
   auto_patrol: number;
+  size_bytes: number;
   progress?: number;
 }
 
@@ -107,11 +108,17 @@ export interface HealthWorkerCheck {
   total_workers: number;
 }
 
+export interface HealthUptimeCheck {
+  percent: number | null;
+  window_days: number;
+}
+
 export interface HealthChecks {
   internet: HealthInternetCheck;
   disk: HealthDiskCheck;
   database: boolean;
   workers: HealthWorkerCheck;
+  uptime?: HealthUptimeCheck;
 }
 
 export interface HealthStatus {

@@ -84,6 +84,32 @@ func (s *HealthService) CleanupLogs() {
 	}
 }
 
+const uptimeWindowDays = 30
+
+func (s *HealthService) recordCheck(status string) {
+	_, err := s.db.Exec("INSERT INTO health_checks (checked_at, status) VALUES (?, ?)", time.Now().UTC().Format("2006-01-02 15:04:05"), status)
+	if err != nil {
+		slog.Error("Failed to record health check", "error", err)
+	}
+
+	_, err = s.db.Exec("DELETE FROM health_checks WHERE checked_at < datetime('now', ?)", fmt.Sprintf("-%d days", uptimeWindowDays))
+	if err != nil {
+		slog.Error("Failed to prune health checks", "error", err)
+	}
+}
+
+func (s *HealthService) uptime() map[string]interface{} {
+	var total, healthy int
+	err := s.db.QueryRow("SELECT COUNT(*), COALESCE(SUM(CASE WHEN status = 'healthy' THEN 1 ELSE 0 END), 0) FROM health_checks").Scan(&total, &healthy)
+	if err != nil || total == 0 {
+		return map[string]interface{}{"percent": nil, "window_days": uptimeWindowDays}
+	}
+	return map[string]interface{}{
+		"percent":     float64(healthy) / float64(total) * 100,
+		"window_days": uptimeWindowDays,
+	}
+}
+
 func (s *HealthService) PerformCheck() {
 	newStatus := "healthy"
 	checks := make(map[string]interface{})
@@ -134,6 +160,10 @@ func (s *HealthService) PerformCheck() {
 
 	// 4. Worker Pool
 	checks["workers"] = s.syncManager.GetStats()
+
+	// 5. Uptime
+	s.recordCheck(newStatus)
+	checks["uptime"] = s.uptime()
 
 	s.mu.Lock()
 	oldStatus := s.status

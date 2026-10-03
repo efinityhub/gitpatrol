@@ -35,6 +35,9 @@
         {/if}
       </div>
       <div style="font-size: 0.8rem; color: var(--on-surface-variant);">{repo.url.replace('https://github.com/', '')}</div>
+      {#if repo.status === 'error' && repo.error_message}
+        <div style="font-size: 0.8rem; color: var(--error); margin-top: 4px;">{repo.error_message}</div>
+      {/if}
     </div>
   </div>
 
